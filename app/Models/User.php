@@ -2,47 +2,56 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Traits\CreateStringId;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
+use RichanFongdasen\EloquentBlameable\BlameableTrait;
+use Illuminate\Support\Carbon;
+use Tymon\JWTAuth\Contracts\JWTSubject;
 
-class User extends Authenticatable
+class User extends Authenticatable implements JWTSubject
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable;
+    use BlameableTrait, SoftDeletes, CreateStringId;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array<int, string>
-     */
+    protected $table = "users";
+    protected $primaryKey = "id";
+    public $incrementing = false;
+    protected $keyType = "string";
+
     protected $fillable = [
-        'name',
+        'username',
         'email',
-        'password',
+        'avatar_url',
+        'socialite_data',
+        'geolocation',
+        'configs'
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var array<int, string>
-     */
-    protected $hidden = [
-        'password',
-        'remember_token',
-    ];
-
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
-            'email_verified_at' => 'datetime',
-            'password' => 'hashed',
+            'socialite_data' => 'array',
+            'geolocation' => 'array',
+            'configs' => 'array',
         ];
+    }
+
+    public function getJWTIdentifier()
+    {
+        return $this->getKey();
+    }
+
+    public function getJWTCustomClaims()
+    {
+        if ($this->can('use-extended-time')) {
+            $expiration = Carbon::now('UTC')->addYears(2)->getTimestamp();
+            return ['exp' => $expiration];
+        }
+        return [];
+    }
+
+    public function getGeolocation()
+    {
+        return json_decode($this->attributes["geolocation"]);
     }
 }
