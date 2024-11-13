@@ -1,0 +1,31 @@
+name: Quench BE CICD
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  job_1:
+    name: Build Quench BE
+    runs-on: self-hosted
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: false
+      - name: Copy .env
+        env:
+          DOT_ENV: ${{ secrets.ENCRYPTED_DOT_ENV }}
+        run: |
+          rm -f .env
+          touch .env
+          echo "${DOT_ENV// /}" | base64 --decode > .env
+      - name: Install Dependencies Backend
+        run: composer install
+      - name: Clear Cache
+        run: |
+          php artisan cache:clear
+          php artisan route:clear
+          php artisan config:clear
+      - name: Directory Permissions Backend
+        run: echo ${{ secrets.DROPLET_PASS }} | sudo -S chmod -R 777 storage bootstrap/cache
