@@ -15,6 +15,7 @@ Route::group(['prefix' => 'v1', 'middleware' => AcceptJson::class], function () 
             $router->get('/get/{className}/{id}/{relations?}', 'DataController@index');
             $router->get('/combobox', 'DataController@comboboxData');
             $router->get('/list', 'DataController@list');
+            $router->get('/statistics', 'DataController@statistics');
         });
 
         $router->group(['prefix' => 'crud'], function () use ($router) {
@@ -40,6 +41,7 @@ Route::group(['prefix' => 'v1', 'middleware' => AcceptJson::class], function () 
 
         $router->group(['prefix' => 'recipe', 'namespace' => 'App\Http\Controllers'], function () use ($router) {
             $router->put('/create', 'RecipeController@create');
+            $router->patch('/update', 'RecipeController@update');
         });
     });
 });

@@ -4,9 +4,8 @@ namespace App\Http\Requests\Recipe;
 
 use Auth;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Support\Facades\Log;
 
-class CreateRequest extends FormRequest
+class UpdateRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -24,12 +23,13 @@ class CreateRequest extends FormRequest
     public function rules(): array
     {
         return [
+            "id" => "required|string",
             "title" => "required|string|max:255",
             "method_id" => "required|exists:methods,id",
             "description" => "nullable|string",
             "ingredients" => "required|json",
             "steps" => "required|json",
-            "image" => "required|image"
+            "image" => "nullable|image"
         ];
     }
 }

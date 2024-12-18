@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('recipe_id');
             $table->integer('likes')->default(0);
+            $table->integer('views')->default(0);
             $table->timestamps();
             $table->string('created_by')->nullable();
             $table->string('updated_by')->nullable();

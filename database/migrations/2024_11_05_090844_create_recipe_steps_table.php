@@ -14,9 +14,11 @@ return new class extends Migration
         Schema::create('recipe_steps', function (Blueprint $table) {
             $table->id();
             $table->string('recipe_id');
-            $table->text('image_url')->nullable();
             $table->text('step');
             $table->smallInteger('order');
+            $table->integer('timer_seconds')->nullable();
+            $table->integer('video_starts_at')->nullable();
+            $table->integer('video_stops_at')->nullable();
             $table->timestamps();
             $table->string('created_by')->nullable();
             $table->string('updated_by')->nullable();

@@ -5,13 +5,12 @@ namespace App\Models;
 use App\Traits\CreateStringId;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
-use RichanFongdasen\EloquentBlameable\BlameableTrait;
 use Illuminate\Support\Carbon;
 use Tymon\JWTAuth\Contracts\JWTSubject;
 
 class User extends Authenticatable implements JWTSubject
 {
-    use BlameableTrait, SoftDeletes, CreateStringId;
+    use SoftDeletes, CreateStringId;
 
     protected $table = "users";
     protected $primaryKey = "id";

@@ -1,19 +1,17 @@
 <?php
 
-namespace App\Http\Requests\Recipe;
+namespace App\Http\Requests\Data;
 
-use Auth;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Support\Facades\Log;
 
-class CreateRequest extends FormRequest
+class StatisticRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
      */
     public function authorize(): bool
     {
-        return Auth::check();
+        return true;
     }
 
     /**
@@ -24,12 +22,8 @@ class CreateRequest extends FormRequest
     public function rules(): array
     {
         return [
-            "title" => "required|string|max:255",
-            "method_id" => "required|exists:methods,id",
-            "description" => "nullable|string",
-            "ingredients" => "required|json",
-            "steps" => "required|json",
-            "image" => "required|image"
+            "type" => "required|string",
+            "user_id" => "nullable|string"
         ];
     }
 }

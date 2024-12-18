@@ -11,5 +11,6 @@ class RecipeMetadata extends Model
     protected $fillable = [
         "recipe_id",
         "likes",
+        "views"
     ];
 }

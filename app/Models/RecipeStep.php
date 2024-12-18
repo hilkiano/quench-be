@@ -10,8 +10,12 @@ class RecipeStep extends Model
 
     protected $fillable = [
         "recipe_id",
-        "image_url",
         "step",
-        "order"
+        "order",
+        "timer_seconds",
+        "video_starts_at",
+        "video_stops_at",
+        'created_by',
+        'updated_by'
     ];
 }

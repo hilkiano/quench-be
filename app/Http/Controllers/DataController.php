@@ -4,9 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\Data\ComboboxRequest;
 use App\Http\Requests\Data\ListRequest;
+use App\Http\Requests\Data\StatisticRequest;
+use App\Models\Recipe;
 use App\Traits\GeneralHelpers;
 use Auth;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
+use Str;
 
 class DataController extends Controller
 {
@@ -107,5 +111,33 @@ class DataController extends Controller
             Log::error($e->getTraceAsString());
             return $this->jsonResponse(false, null, $e->getMessage(), $e->getTrace(), 500);
         }
+    }
+
+    public function statistics(StatisticRequest $request)
+    {
+        try {
+            $result = [];
+            switch ($request->type) {
+                case 'user':
+                    $result["user"] = $this->getUserStatistics($request->user_id);
+                    break;
+            }
+
+            return $this->jsonResponse(data: $result);
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+            Log::error($e->getTraceAsString());
+            return $this->jsonResponse(false, null, $e->getMessage(), $e->getTrace(), 500);
+        }
+    }
+
+    private function getUserStatistics(string $userId)
+    {
+        $submittedRecipe = Recipe::where("created_by", $userId)->count();
+
+        return [
+            "submitted_recipe" => $submittedRecipe,
+            "tried_recipe" => 0
+        ];
     }
 }

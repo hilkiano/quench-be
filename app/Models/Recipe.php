@@ -5,11 +5,10 @@ namespace App\Models;
 use App\Traits\CreateStringId;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use RichanFongdasen\EloquentBlameable\BlameableTrait;
 
 class Recipe extends Model
 {
-    use BlameableTrait, SoftDeletes, CreateStringId;
+    use SoftDeletes, CreateStringId;
 
     protected $table = "recipes";
     protected $primaryKey = "id";
@@ -19,15 +18,19 @@ class Recipe extends Model
     protected $fillable = [
         'title',
         'description',
-        'approved_at',
+        'image_url',
+        'method_id',
+        'status',
+        'reason',
         'youtube_url',
-        'configs'
+        'configs',
+        'created_by',
+        'updated_by'
     ];
 
     protected function casts(): array
     {
         return [
-            'approved_at' => 'datetime',
             'configs' => 'array',
         ];
     }
@@ -40,5 +43,15 @@ class Recipe extends Model
     public function ingredients()
     {
         return $this->hasMany(RecipeIngredient::class);
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, "created_by");
+    }
+
+    public function meta()
+    {
+        return $this->hasOne(RecipeMetadata::class, "recipe_id");
     }
 }

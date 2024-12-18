@@ -13,6 +13,7 @@ class RecipeIngredient extends Model
         "name",
         "quantity",
         "unit_id",
-        "image_url"
+        'created_by',
+        'updated_by'
     ];
 }

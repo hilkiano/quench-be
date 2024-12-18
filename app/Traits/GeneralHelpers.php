@@ -2,7 +2,12 @@
 
 namespace App\Traits;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
+use Intervention\Image\Drivers\Imagick\Driver;
+use Intervention\Image\ImageManager;
+use Log;
+use Storage;
 
 trait GeneralHelpers
 {
@@ -51,5 +56,27 @@ trait GeneralHelpers
     function generateRelationsArray(string $relations)
     {
         return explode("&", $relations);
+    }
+
+    function storeImage(string $disk, $file, $dir): string
+    {
+        $manager = new ImageManager(new Driver());
+        $image = $manager->read($file);
+        $name = $file->hashName();
+        $destination = env("APP_ENV") === "local" ? "development" : "";
+        $destination = "{$destination}/{$dir}/{$name}";
+        $put = Storage::disk($disk)->put($destination, $image->encodeByMediaType());
+        if ($put) {
+            return Storage::disk($disk)->url($destination);
+        }
+
+        return null;
+    }
+
+    function deleteFile(string $disk, $path): bool
+    {
+        $delete = Storage::disk($disk)->delete($path);
+
+        return $delete;
     }
 }
