@@ -54,4 +54,14 @@ class Recipe extends Model
     {
         return $this->hasOne(RecipeMetadata::class, "recipe_id");
     }
+
+    public function comments()
+    {
+        return $this->hasMany(Comment::class, "recipe_id");
+    }
+
+    public function method()
+    {
+        return $this->belongsTo(Method::class, "method_id");
+    }
 }

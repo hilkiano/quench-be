@@ -64,10 +64,14 @@ class RecipeIngredientCrud implements ValidationRule
     private function checkPayload(mixed $value, Closure $fail)
     {
         $model = new RecipeIngredient();
-        $fillable = $model->getFillable();
+        $availableColumns = $model->getConnection()->getSchemaBuilder()->getColumns($model->getTable());
+        $columns = [];
+        foreach ($availableColumns as $column) {
+            array_push($columns, $column["name"]);
+        }
 
         foreach ($value as $k => $v) {
-            if (!in_array($k, $fillable)) {
+            if (!in_array($k, $columns)) {
                 $fail(__("validation.column_not_exist", ["column" => $k, "class" => "RecipeIngredient"]));
             }
         }

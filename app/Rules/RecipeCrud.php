@@ -2,9 +2,11 @@
 
 namespace App\Rules;
 
+use App\Enums\RecipeStatus;
 use App\Models\Recipe;
 use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Validator;
 
@@ -36,6 +38,11 @@ class RecipeCrud implements ValidationRule
             $updateValidator = Validator::make($value, [
                 "id" => "required|exists:recipes,id",
                 "title" => "nullable|string|max:255",
+                "status" => [
+                    "nullable",
+                    Rule::enum(RecipeStatus::class)
+                ],
+                "reason" => "required_if:status,REJECTED|string",
                 "description" => "nullable|string",
                 "approved_at" => "nullable|date",
                 "youtube_url" => "nullable|string",
@@ -66,10 +73,14 @@ class RecipeCrud implements ValidationRule
     private function checkPayload(mixed $value, Closure $fail)
     {
         $model = new Recipe();
-        $fillable = $model->getFillable();
+        $availableColumns = $model->getConnection()->getSchemaBuilder()->getColumns($model->getTable());
+        $columns = [];
+        foreach ($availableColumns as $column) {
+            array_push($columns, $column["name"]);
+        }
 
         foreach ($value as $k => $v) {
-            if (!in_array($k, $fillable)) {
+            if (!in_array($k, $columns)) {
                 $fail(__("validation.column_not_exist", ["column" => $k, "class" => "Recipe"]));
             }
         }
