@@ -4,7 +4,7 @@ namespace App\Enums;
 
 enum RecipeStatus: string
 {
-    case SUBMITTED = "SUBMITTED";
+    case DRAFT = "DRAFT";
     case APPROVED = "APPROVED";
     case REJECTED = "REJECTED";
     case HIDDEN = "HIDDEN";

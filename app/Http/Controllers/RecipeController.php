@@ -41,7 +41,7 @@ class RecipeController extends Controller
                         "youtube_url" => $request->has("youtube_url") ? $request->youtube_url : null,
                         "method_id" => $request->method_id,
                         "image_url" => $this->storeImage("s3", $request->file("image"), "recipes"),
-                        "status" => RecipeStatus::SUBMITTED->value,
+                        "status" => RecipeStatus::APPROVED->value,
                         "created_by" => Auth::id(),
                         "updated_by" => Auth::id()
                     ]
@@ -123,7 +123,7 @@ class RecipeController extends Controller
                 "description" => $request->has("description") ? $request->description : null,
                 "youtube_url" => $request->has("youtube_url") ? $request->youtube_url : null,
                 "method_id" => $request->method_id,
-                "status" => RecipeStatus::SUBMITTED->value,
+                "status" => RecipeStatus::APPROVED->value,
                 "created_by" => Auth::id(),
                 "updated_by" => Auth::id()
             ];

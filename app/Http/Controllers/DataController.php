@@ -89,8 +89,8 @@ class DataController extends Controller
                 ->when($request->has("filter"), function ($query) use ($request, $model) {
                     $filterObj = json_decode($request->filter);
                     foreach ($filterObj as $filter) {
-                        if ($model->getConnection()->getSchemaBuilder()->hasColumn($model->getTable(), $filter->id)) {
-                            $query->where($filter->id, $filter->value);
+                        if ($model->getConnection()->getSchemaBuilder()->hasColumn($model->getTable(), $filter->column)) {
+                            $query->where($filter->column, $filter->value);
                         }
                     }
                 })

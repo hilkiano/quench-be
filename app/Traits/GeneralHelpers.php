@@ -58,7 +58,7 @@ trait GeneralHelpers
         return explode("&", $relations);
     }
 
-    function storeImage(string $disk, $file, $dir): string
+    function storeImage(string $disk, $file, $dir): string | null
     {
         $manager = new ImageManager(new Driver());
         $image = $manager->read($file);
@@ -76,6 +76,13 @@ trait GeneralHelpers
     function deleteFile(string $disk, $path): bool
     {
         $delete = Storage::disk($disk)->delete($path);
+
+        return $delete;
+    }
+
+    function deleteDirectory(string $disk, $path): bool
+    {
+        $delete = Storage::disk($disk)->deleteDirectory($path);
 
         return $delete;
     }
