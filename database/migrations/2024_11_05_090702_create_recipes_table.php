@@ -17,11 +17,11 @@ return new class extends Migration
             $table->string('title', 255)->nullable();
             $table->text('description')->nullable();
             $table->enum('status', [
-                RecipeStatus::DRAFT->value,
+                RecipeStatus::SUBMITTED->value,
                 RecipeStatus::APPROVED->value,
                 RecipeStatus::REJECTED->value,
                 RecipeStatus::HIDDEN->value
-            ])->default(RecipeStatus::DRAFT->value);
+            ])->default(RecipeStatus::SUBMITTED->value);
             $table->text('reason')->nullable();
             $table->text('image_url')->nullable();
             $table->bigInteger('method_id')->nullable();

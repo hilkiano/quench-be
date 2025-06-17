@@ -47,6 +47,7 @@ Route::group(['prefix' => 'v1', 'middleware' => AcceptJson::class], function () 
         $router->group(['prefix' => 'draft', 'namespace' => 'App\Http\Controllers'], function () use ($router) {
             $router->post('/save', 'RecipeDraftController@save');
             $router->delete('/delete/{id}', 'RecipeDraftController@delete');
+            $router->post('/submit/{id}', 'RecipeDraftController@submitDraft');
         });
     });
 });

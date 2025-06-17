@@ -14,7 +14,7 @@ trait GeneralHelpers
     function jsonResponse(
         bool $status = true,
         mixed $data = null,
-        string $message = null,
+        string $message = "",
         mixed $trace = null,
         int $code = 200,
         mixed $cookieData = null
@@ -85,5 +85,12 @@ trait GeneralHelpers
         $delete = Storage::disk($disk)->deleteDirectory($path);
 
         return $delete;
+    }
+
+    function copyFile(string $disk, $path, $destPath)
+    {
+        $copy = Storage::disk($disk)->copy($path, $destPath);
+
+        return $copy;
     }
 }
