@@ -14,6 +14,7 @@ use App\Traits\GeneralHelpers;
 use Auth;
 use DB;
 use Illuminate\Support\Facades\Storage;
+use Str;
 
 class RecipeDraftController extends Controller
 {
@@ -121,8 +122,13 @@ class RecipeDraftController extends Controller
 
             if ($draft) {
                 DB::beginTransaction();
-                // Create new recipe
-                $recipe = new Recipe();
+
+                // If draft has recipe_id, update the recipe. Otherwise, create.
+                if ($draft->recipe_id) {
+                    $recipe = Recipe::find($draft->recipe_id);
+                } else {
+                    $recipe = new Recipe();
+                }
 
                 $recipe->title = $draft->data["basic_info"]["title"];
                 $recipe->method_id = (int) $draft->data["basic_info"]["method_id"];
@@ -132,6 +138,12 @@ class RecipeDraftController extends Controller
                 $recipe->updated_by = Auth::id();
 
                 $recipe->save();
+
+                // If draft has recipe_id, delete old image and copy from draft
+                if ($draft->recipe_id) {
+                    $parsedUrl = parse_url($recipe->image_url);
+                    $this->deleteFile("s3", $parsedUrl["path"]);
+                }
 
                 // Copy image
                 $draftImage = parse_url($draft->image_url);
@@ -144,7 +156,11 @@ class RecipeDraftController extends Controller
                     ]);
                 }
 
-                // Add ingredients
+                // If draft has recipe_id, delete all ingredients. Otherwise, only create.
+                if ($draft->recipe_id) {
+                    RecipeIngredient::where("recipe_id", $draft->recipe_id)->delete();
+                }
+
                 foreach ($draft->data["ingredients"] as $ingredient) {
                     $newIngredient = new RecipeIngredient();
 
@@ -158,7 +174,11 @@ class RecipeDraftController extends Controller
                     $newIngredient->save();
                 }
 
-                // Add steps
+                // If draft has recipe_id, delete all steps. Otherwise, only create.
+                if ($draft->recipe_id) {
+                    RecipeStep::where("recipe_id", $draft->recipe_id)->delete();
+                }
+
                 foreach ($draft->data["steps"] as $step) {
                     $newStep = new RecipeStep();
 
@@ -192,5 +212,84 @@ class RecipeDraftController extends Controller
             Log::error($e->getTraceAsString());
             return $this->jsonResponse(false, null, $e->getMessage(), $e->getTrace(), 500);
         }
+    }
+
+    public function makeDraft(string $id)
+    {
+        try {
+            $existingDraft = RecipeDraft::where("recipe_id", $id)->first();
+            if ($existingDraft) {
+                return $this->jsonResponse(data: $existingDraft->id);
+            }
+
+            $recipe = Recipe::with(["steps", "ingredients"])->find($id);
+
+            DB::beginTransaction();
+            $newDraft = new RecipeDraft();
+
+            $newDraft->data = $this->prepareDraftData($recipe);
+            $newDraft->recipe_id = $id;
+            $newDraft->created_by = Auth::id();
+            $newDraft->updated_by = Auth::id();
+
+            $newDraft->save();
+
+            // Copy image
+            RecipeDraft::where("id", $newDraft->id)->first()->update([
+                "image_url" => $this->copyToDraftImage($recipe->image_url, $newDraft->id)
+            ]);
+
+            DB::commit();
+
+            return $this->jsonResponse(data: $newDraft->id);
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+            Log::error($e->getTraceAsString());
+            return $this->jsonResponse(false, null, $e->getMessage(), $e->getTrace(), 500);
+        }
+    }
+
+    private function prepareDraftData(Recipe $recipe)
+    {
+        $dataContent = [
+            "basic_info" => [
+                "title" => $recipe->title,
+                "method_id" => (string) $recipe->method_id,
+                "description" => $recipe->description
+            ],
+            "steps" => [],
+            "ingredients" => []
+        ];
+
+        foreach ($recipe->ingredients as $ingredient) {
+            array_push($dataContent["ingredients"], [
+                "uuid"  => Str::uuid(),
+                "name"  => $ingredient->name,
+                "unit_id" => $ingredient->unit_id,
+                "quantity" => $ingredient->quantity
+            ]);
+        }
+
+        foreach ($recipe->steps as $step) {
+            array_push($dataContent["steps"], [
+                "uuid"  => Str::uuid(),
+                "step"  => $step->step,
+                "order" => $step->order,
+                "timer_seconds" => $step->timer_seconds
+            ]);
+        }
+
+        return $dataContent;
+    }
+
+    private function copyToDraftImage(string $url, int $id)
+    {
+        $sourceUrl = parse_url($url);
+        $baseName = basename($sourceUrl["path"]);
+        $targetPath = env("APP_ENV") === "local" ? "development/draft/{$id}/{$baseName}" : "draft/{$id}/{$baseName}";
+
+        Storage::disk("s3")->copy($sourceUrl["path"], $targetPath);
+
+        return Storage::disk("s3")->url($targetPath);
     }
 }
