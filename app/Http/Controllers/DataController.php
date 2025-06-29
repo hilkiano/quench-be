@@ -8,6 +8,7 @@ use App\Http\Requests\Data\StatisticRequest;
 use App\Models\Recipe;
 use App\Traits\GeneralHelpers;
 use Auth;
+use DB;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use Str;

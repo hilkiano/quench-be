@@ -19,14 +19,6 @@ class UnitSeeder extends Seeder
             "abbreviation" => "ml"
         ],
         [
-            "name" => "kilogram",
-            "abbreviation" => "kg"
-        ],
-        [
-            "name" => "liter",
-            "abbreviation" => "L"
-        ],
-        [
             "name" => "centimeter",
             "abbreviation" => "cm"
         ],

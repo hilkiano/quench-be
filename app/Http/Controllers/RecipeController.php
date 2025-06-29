@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Enums\RecipeStatus;
 use App\Http\Requests\CrudRequest;
+use App\Http\Requests\Recipe\AddToBookRequest;
 use App\Http\Requests\Recipe\CreateRequest;
 use App\Http\Requests\Recipe\UpdateRequest;
+use App\Http\Requests\Recipe\UpdateStatusRequest;
 use App\Models\Recipe;
 use App\Models\RecipeIngredient;
 use App\Models\RecipeStep;
@@ -13,6 +15,8 @@ use App\Traits\GeneralHelpers;
 use Auth;
 use DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Mockery\Undefined;
 
 class RecipeController extends Controller
 {
@@ -230,6 +234,144 @@ class RecipeController extends Controller
 
             $result = $this->dataController->index("Recipe", $request->id, "steps&ingredients");
             return $this->jsonResponse(data: json_decode($result->getContent())->data);
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+            Log::error($e->getTraceAsString());
+            return $this->jsonResponse(false, null, $e->getMessage(), $e->getTrace(), 500);
+        }
+    }
+
+    public function updateStatus(UpdateStatusRequest $request)
+    {
+        try {
+            $recipe = Recipe::find($request->id);
+
+            DB::beginTransaction();
+
+            $recipe->status = $request->status;
+            $recipe->reason = $request->status !== RecipeStatus::REJECTED->value ? null : $request->reason;
+
+            if ($request->status === RecipeStatus::APPROVED->value) {
+                $recipe->approved_at = now();
+                $recipe->approved_by = Auth::id();
+            }
+
+            $recipe->save();
+
+            DB::commit();
+
+            return $this->jsonResponse(data: $request->all());
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+            Log::error($e->getTraceAsString());
+            return $this->jsonResponse(false, null, $e->getMessage(), $e->getTrace(), 500);
+        }
+    }
+
+    public function addToBook(AddToBookRequest $request)
+    {
+        try {
+            $recipe = Recipe::with(["steps", "ingredients"])->find($request->id);
+
+            $copyCount = Recipe::where("original_recipe_id", $request->id)->count();
+            $count = $copyCount === 0 ? "" : " " . (string) $copyCount;
+
+            // Create recipe
+            $recipeRequest = new CrudRequest();
+            $recipeRequest->replace(
+                [
+                    "payload" => [
+                        "title" => "[Copy{$count}] " . $recipe->title,
+                        "description" => $recipe->description,
+                        "method_id" => $recipe->method_id,
+                        "status" => RecipeStatus::SUBMITTED->value,
+                        "created_by" => Auth::id(),
+                        "updated_by" => Auth::id(),
+                        "original_recipe_id" => $request->id
+                    ]
+                ]
+            );
+            $createRecipe = $this->crudController->create($recipeRequest, "Recipe");
+
+            if (json_decode($createRecipe->getContent())->status) {
+                $newRecipe = json_decode($createRecipe->getContent())->data;
+
+                // Update image
+                $recipeImage = parse_url($recipe->image_url);
+                $newPath = env("APP_ENV") === "local" ? "/development/recipes/{$newRecipe->id}" : "/requests/{$newRecipe->id}";
+                $copyImage = $this->copyFile("s3", $recipeImage["path"], $newPath . "/" . basename($recipeImage["path"]));
+
+                if ($copyImage) {
+                    Recipe::find($newRecipe->id)->update([
+                        "image_url" => Storage::disk("s3")->url($newPath . "/" . basename($recipeImage["path"]))
+                    ]);
+                }
+
+                // Create steps
+                $steps = json_decode($recipe->steps);
+                foreach ($steps as $step) {
+                    $stepRequest = new CrudRequest();
+                    $stepRequest->replace(
+                        [
+                            "payload" => [
+                                "recipe_id" => $newRecipe->id,
+                                "order" => $step->order,
+                                "step" => $step->step,
+                                "timer_seconds" => property_exists($step, "timer_seconds") ? $step->timer_seconds : null,
+                                "video_starts_at" => property_exists($step, "video_starts_at") ? $step->video_starts_at : null,
+                                "video_stops_at" => property_exists($step, "video_stops_at") ? $step->video_stops_at : null,
+                                "created_by" => Auth::id(),
+                                "updated_by" => Auth::id()
+                            ]
+                        ]
+                    );
+                    $this->crudController->create($stepRequest, "RecipeStep");
+                }
+
+                // Create ingredients
+                $ingredients = json_decode($recipe->ingredients);
+                foreach ($ingredients as $ingredient) {
+                    $ingredientRequest = new CrudRequest();
+                    $ingredientRequest->replace(
+                        [
+                            "payload" => [
+                                "recipe_id" => $newRecipe->id,
+                                "name" => $ingredient->name,
+                                "quantity" => $ingredient->quantity,
+                                "unit_id" => $ingredient->unit_id,
+                                "created_by" => Auth::id(),
+                                "updated_by" => Auth::id()
+                            ]
+                        ]
+                    );
+                    $this->crudController->create($ingredientRequest, "RecipeIngredient");
+                }
+
+                // Create meta
+                $metadataRequest = new CrudRequest();
+                $metadataRequest->replace([
+                    "payload" => [
+                        "recipe_id" => $newRecipe->id
+                    ]
+                ]);
+                $this->crudController->create($metadataRequest, "RecipeMetadata");
+            }
+
+            DB::commit();
+
+            $result = $this->dataController->index("Recipe", $newRecipe->id, "steps&ingredients");
+            return $this->jsonResponse(data: json_decode($result->getContent())->data);
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+            Log::error($e->getTraceAsString());
+            return $this->jsonResponse(false, null, $e->getMessage(), $e->getTrace(), 500);
+        }
+    }
+
+    public function getRandom()
+    {
+        try {
+            return $this->jsonResponse(data: Recipe::with('method')->inRandomOrder()->first());
         } catch (\Exception $e) {
             Log::error($e->getMessage());
             Log::error($e->getTraceAsString());

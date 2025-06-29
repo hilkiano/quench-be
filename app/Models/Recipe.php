@@ -25,7 +25,10 @@ class Recipe extends Model
         'youtube_url',
         'configs',
         'created_by',
-        'updated_by'
+        'updated_by',
+        'original_recipe_id',
+        'approved_at',
+        'approved_by'
     ];
 
     protected function casts(): array

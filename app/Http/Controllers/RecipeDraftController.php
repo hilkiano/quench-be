@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\RecipeStatus;
+use App\Http\Requests\CrudRequest;
 use App\Http\Requests\RecipeDraft\DeleteRequest;
 use App\Http\Requests\RecipeDraft\SaveRequest;
 use App\Models\Recipe;
@@ -19,6 +20,13 @@ use Str;
 class RecipeDraftController extends Controller
 {
     use GeneralHelpers;
+
+    private $crudController;
+
+    public function __construct()
+    {
+        $this->crudController = new CrudController();
+    }
 
     public function save(SaveRequest $request)
     {
@@ -191,6 +199,16 @@ class RecipeDraftController extends Controller
 
 
                     $newStep->save();
+                }
+
+                if (!$draft->recipe_id) {
+                    $metadataRequest = new CrudRequest();
+                    $metadataRequest->replace([
+                        "payload" => [
+                            "recipe_id" => $recipe->id
+                        ]
+                    ]);
+                    $this->crudController->create($metadataRequest, "RecipeMetadata");
                 }
 
                 // Delete draft
