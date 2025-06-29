@@ -8,6 +8,7 @@ use App\Http\Requests\Data\StatisticRequest;
 use App\Models\Recipe;
 use App\Traits\GeneralHelpers;
 use Auth;
+use DB;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use Str;
@@ -90,7 +91,17 @@ class DataController extends Controller
                     $filterObj = json_decode($request->filter);
                     foreach ($filterObj as $filter) {
                         if ($model->getConnection()->getSchemaBuilder()->hasColumn($model->getTable(), $filter->id)) {
-                            $query->where($filter->id, $filter->value);
+                            if ($filter->type === "where") {
+                                $query->where($filter->id, $filter->value);
+                            }
+
+                            if ($filter->type === "where_in") {
+                                $value = $filter->value;
+                                if (is_string($value)) {
+                                    $value = json_decode($value);
+                                }
+                                $query->whereIn($filter->id, $value);
+                            }
                         }
                     }
                 })

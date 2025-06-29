@@ -9,7 +9,7 @@ use App\Models\Method;
 
 class MethodSeeder extends Seeder
 {
-    protected $methods = ["V60", "POUR_OVER", "FRENCH_PRESS", "AERO_PRESS", "MOKA_POT", "COLD_BREW", "SIPHON", "DRIP"];
+    protected $methods = ["V60", "POUR_OVER", "FRENCH_PRESS", "AERO_PRESS", "MOKA_POT", "COLD_BREW", "SIPHON", "DRIP", "OTHER"];
     /**
      * Run the database seeds.
      */

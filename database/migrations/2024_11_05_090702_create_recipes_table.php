@@ -14,7 +14,7 @@ return new class extends Migration
     {
         Schema::create('recipes', function (Blueprint $table) {
             $table->string('id', 30)->primary();
-            $table->string('title', 255);
+            $table->string('title', 255)->nullable();
             $table->text('description')->nullable();
             $table->enum('status', [
                 RecipeStatus::SUBMITTED->value,
@@ -24,7 +24,7 @@ return new class extends Migration
             ])->default(RecipeStatus::SUBMITTED->value);
             $table->text('reason')->nullable();
             $table->text('image_url')->nullable();
-            $table->bigInteger('method_id');
+            $table->bigInteger('method_id')->nullable();
             $table->text('youtube_url')->nullable();
             $table->jsonb('configs')->nullable();
             $table->timestamps();

@@ -25,6 +25,14 @@ Route::group(['prefix' => 'v1', 'middleware' => AcceptJson::class], function () 
             $router->post('/restore/{model}', 'CrudController@restore');
             $router->delete('/force-delete', 'CrudController@forceDelete');
         });
+
+        $router->group(['prefix' => 'umami'], function () use ($router) {
+            $router->get('/pageviews', 'UmamiController@getPageviews');
+        });
+
+        $router->group(['prefix' => 'recipe'], function () use ($router) {
+            $router->get('/random', 'RecipeController@getRandom');
+        });
     });
 
     // Needs login session
@@ -42,6 +50,15 @@ Route::group(['prefix' => 'v1', 'middleware' => AcceptJson::class], function () 
         $router->group(['prefix' => 'recipe', 'namespace' => 'App\Http\Controllers'], function () use ($router) {
             $router->put('/create', 'RecipeController@create');
             $router->patch('/update', 'RecipeController@update');
+            $router->post('/update-status', 'RecipeController@updateStatus');
+            $router->post('/add-to-book', 'RecipeController@addToBook');
+        });
+
+        $router->group(['prefix' => 'draft', 'namespace' => 'App\Http\Controllers'], function () use ($router) {
+            $router->post('/save', 'RecipeDraftController@save');
+            $router->delete('/delete/{id}', 'RecipeDraftController@delete');
+            $router->post('/submit/{id}', 'RecipeDraftController@submitDraft');
+            $router->post('/make/{id}', 'RecipeDraftController@makeDraft');
         });
     });
 });
