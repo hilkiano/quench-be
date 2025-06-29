@@ -63,8 +63,7 @@ trait GeneralHelpers
         $manager = new ImageManager(new Driver());
         $image = $manager->read($file);
         $name = $file->hashName();
-        $destination = env("APP_ENV") === "local" ? "development" : "";
-        $destination = "{$destination}/{$dir}/{$name}";
+        $destination = env("APP_ENV") === "local" ? "development/{$dir}/{$name}" : "{$dir}/{$name}";
         $put = Storage::disk($disk)->put($destination, $image->encodeByMediaType());
         if ($put) {
             return Storage::disk($disk)->url($destination);
