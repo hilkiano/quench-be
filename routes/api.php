@@ -33,6 +33,10 @@ Route::group(['prefix' => 'v1', 'middleware' => AcceptJson::class], function () 
         $router->group(['prefix' => 'recipe'], function () use ($router) {
             $router->get('/random', 'RecipeController@getRandom');
         });
+
+        $router->group(['prefix' => 'push'], function () use ($router) {
+            $router->post('/send', 'NotificationController@sendNotification');
+        });
     });
 
     // Needs login session
