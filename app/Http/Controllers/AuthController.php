@@ -50,9 +50,10 @@ class AuthController extends Controller
 
             // Update last login and geolocation info
             $geolocation = file_get_contents("https://api.ipgeolocation.io/ipgeo?apiKey=" . env("IPGEOLOCATION_KEY"));
-            $userModel->configs = [
-                "last_login" => Carbon::now()
-            ];
+
+            $configs = $userModel->configs;
+
+            $userModel->configs = [...$configs, "last_login" => Carbon::now()];
             $userModel->geolocation = $geolocation ? json_decode($geolocation) : null;
             $userModel->save();
 
