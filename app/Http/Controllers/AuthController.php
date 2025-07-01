@@ -3,12 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\Auth\CreateRequest;
+use App\Http\Requests\Auth\UpdateConfigRequest;
+use App\Models\DestroyedUser;
+use App\Models\RecipeDraft;
 use App\Models\User as ModelsUser;
 use Laravel\Socialite\Two\User;
 use App\Traits\GeneralHelpers;
 use Auth;
 use Carbon\Carbon;
 use Cookie;
+use DB;
 use Laravel\Socialite\Facades\Socialite;
 use Illuminate\Support\Facades\Log;
 use JWTAuth;
@@ -17,6 +21,13 @@ use Illuminate\Http\Request;
 class AuthController extends Controller
 {
     use GeneralHelpers;
+
+    private $draftCtrl;
+
+    public function __construct()
+    {
+        $this->draftCtrl = new RecipeDraftController();
+    }
 
     public function authRedirect(Request $request, string $provider)
     {
@@ -151,6 +162,67 @@ class AuthController extends Controller
             if ($removeToken) {
                 return $this->jsonResponse(message: "You are logged out.", cookieData: $cookie);
             }
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+            Log::error($e->getTraceAsString());
+            return $this->jsonResponse(false, null, $e->getMessage(), $e->getTrace(), 500);
+        }
+    }
+
+    public function updateConfig(UpdateConfigRequest $request)
+    {
+        try {
+            // Format config
+            $configs = ModelsUser::select("configs")->where("id", $request->id)->first()->configs;
+
+            if ($request->has("hide_email")) {
+                $configs["hide_email"] = filter_var($request->hide_email, FILTER_VALIDATE_BOOLEAN);
+            }
+
+            DB::beginTransaction();
+
+            // Update user
+            ModelsUser::where("id", $request->id)->update([
+                "configs" => $configs
+            ]);
+
+            DB::commit();
+
+            return $this->jsonResponse(data: ModelsUser::where("id", $request->id)->first());
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+            Log::error($e->getTraceAsString());
+            return $this->jsonResponse(false, null, $e->getMessage(), $e->getTrace(), 500);
+        }
+    }
+
+    public function deleteAccount()
+    {
+        try {
+            DB::beginTransaction();
+
+            // Force delete user
+            ModelsUser::where("id", Auth::id())->forceDelete();
+
+            // Add to destroyed user
+            DestroyedUser::insert([
+                "user_id" => Auth::id(),
+                "created_at" => now(),
+                "updated_at" => now()
+            ]);
+
+            // Remove user drafts
+            $drafts = RecipeDraft::where("created_by", Auth::id())->get();
+            if (count($drafts) > 0) {
+                foreach ($drafts as $draft) {
+                    $this->draftCtrl->delete($draft->id);
+                }
+            }
+
+            DB::commit();
+
+            // Logout user
+            return $this->logout();
         } catch (\Exception $e) {
             Log::error($e->getMessage());
             Log::error($e->getTraceAsString());

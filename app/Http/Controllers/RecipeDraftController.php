@@ -58,6 +58,12 @@ class RecipeDraftController extends Controller
 
                 if (count($drafts) === (int) env("DRAFT_MAX")) {
                     $oldestDraft = $drafts->last();
+
+                    if ($oldestDraft->image_url) {
+                        $path = env("APP_ENV") === "local" ? "development/draft/{$oldestDraft->id}" : "draft/{$oldestDraft->id}";
+                        $this->deleteDirectory("s3", $path);
+                    }
+
                     RecipeDraft::where("id", $oldestDraft->id)->delete();
                 }
 

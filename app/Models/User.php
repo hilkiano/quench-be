@@ -26,6 +26,8 @@ class User extends Authenticatable implements JWTSubject
         'configs'
     ];
 
+    protected $hidden = ["geolocation", "socialite_data"];
+
     protected function casts(): array
     {
         return [

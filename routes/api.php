@@ -43,6 +43,8 @@ Route::group(['prefix' => 'v1', 'middleware' => AcceptJson::class], function () 
     $router->group(['middleware' => CheckLoginSession::class], function () use ($router) {
         $router->group(['prefix' => 'auth', 'namespace' => 'App\Http\Controllers'], function () use ($router) {
             $router->post('/logout', 'AuthController@logout');
+            $router->post('/delete-account', 'AuthController@deleteAccount');
+            $router->post('/update-config', 'AuthController@updateConfig');
         });
 
         $router->group(['middleware' => RefreshToken::class], function () use ($router) {
