@@ -23,9 +23,8 @@ class UpdateConfigRequest extends FormRequest
     public function rules(): array
     {
         return [
-            "id" => "required|exists:users,id",
             "hide_email" => "nullable|boolean",
-            "push_subscription" => "nullable|json"
+            "push_subscription" => "nullable"
         ];
     }
 }

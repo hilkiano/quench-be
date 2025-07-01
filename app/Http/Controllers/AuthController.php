@@ -173,22 +173,26 @@ class AuthController extends Controller
     {
         try {
             // Format config
-            $configs = ModelsUser::select("configs")->where("id", $request->id)->first()->configs;
+            $configs = ModelsUser::select("configs")->where("id", Auth::id())->first()->configs;
 
             if ($request->has("hide_email")) {
                 $configs["hide_email"] = filter_var($request->hide_email, FILTER_VALIDATE_BOOLEAN);
             }
 
+            if ($request->has("push_subscription")) {
+                $configs["push_subscription"] = $request->push_subscription;
+            }
+
             DB::beginTransaction();
 
             // Update user
-            ModelsUser::where("id", $request->id)->update([
+            ModelsUser::where("id", Auth::id())->update([
                 "configs" => $configs
             ]);
 
             DB::commit();
 
-            return $this->jsonResponse(data: ModelsUser::where("id", $request->id)->first());
+            return $this->jsonResponse(data: ModelsUser::where("id", Auth::id())->first());
         } catch (\Exception $e) {
             Log::error($e->getMessage());
             Log::error($e->getTraceAsString());
