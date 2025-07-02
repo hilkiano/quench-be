@@ -28,7 +28,8 @@ class Recipe extends Model
         'updated_by',
         'original_recipe_id',
         'approved_at',
-        'approved_by'
+        'approved_by',
+        'language'
     ];
 
     protected function casts(): array

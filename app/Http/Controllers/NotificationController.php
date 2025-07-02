@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\Notification\SendNotificationRequest;
 use App\Traits\GeneralHelpers;
 use Http;
 use Illuminate\Http\Request;
@@ -11,14 +12,20 @@ class NotificationController extends Controller
 {
     use GeneralHelpers;
 
-    public function sendNotification(Request $request)
+    public function sendNotification(SendNotificationRequest $request)
     {
         try {
-            $http = Http::post(env("APP_FE_URL") . "/api/web-push/send", [
-                "title" => "Test Push",
-                "body" => "Backend send",
+            $notification = Http::post(env("APP_FE_URL") . "/api/web-push/send", [
+                "subscription" => $request->subscription,
+                "title" => $request->title,
+                "body" => $request->body,
                 "icon" => "/images/launchicon.png",
-                "url" => "https://goose.hilkiano.com",
+                "url" => $request->url ? $request->url : "https://goose.hilkiano.com",
+                "image" => $request->image
+            ]);
+
+            return $this->jsonResponse(data: [
+                "send_notification" => $notification->status()
             ]);
         } catch (\Exception $e) {
             Log::error($e->getMessage());

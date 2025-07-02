@@ -148,6 +148,7 @@ class RecipeDraftController extends Controller
                 $recipe->method_id = (int) $draft->data["basic_info"]["method_id"];
                 $recipe->description = $draft->data["basic_info"]["description"];
                 $recipe->status = RecipeStatus::SUBMITTED->value;
+                $recipe->language = $draft->data["basic_info"]["language"];
                 $recipe->created_by = Auth::id();
                 $recipe->updated_by = Auth::id();
 
@@ -279,7 +280,8 @@ class RecipeDraftController extends Controller
             "basic_info" => [
                 "title" => $recipe->title,
                 "method_id" => (string) $recipe->method_id,
-                "description" => $recipe->description
+                "description" => $recipe->description,
+                "language" => $recipe->language
             ],
             "steps" => [],
             "ingredients" => []

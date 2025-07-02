@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\RecipeStatus;
 use App\Http\Requests\CrudRequest;
+use App\Http\Requests\Notification\SendNotificationRequest;
 use App\Http\Requests\Recipe\AddToBookRequest;
 use App\Http\Requests\Recipe\CreateRequest;
 use App\Http\Requests\Recipe\UpdateRequest;
@@ -11,6 +12,7 @@ use App\Http\Requests\Recipe\UpdateStatusRequest;
 use App\Models\Recipe;
 use App\Models\RecipeIngredient;
 use App\Models\RecipeStep;
+use App\Models\User;
 use App\Traits\GeneralHelpers;
 use Auth;
 use DB;
@@ -18,17 +20,21 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Mockery\Undefined;
 
+use function PHPSTORM_META\map;
+
 class RecipeController extends Controller
 {
     use GeneralHelpers;
 
     private $crudController;
     private $dataController;
+    private $notificationController;
 
     public function __construct()
     {
         $this->crudController = new CrudController();
         $this->dataController = new DataController();
+        $this->notificationController = new NotificationController();
     }
 
     public function create(CreateRequest $request)
@@ -254,6 +260,25 @@ class RecipeController extends Controller
             if ($request->status === RecipeStatus::APPROVED->value) {
                 $recipe->approved_at = now();
                 $recipe->approved_by = Auth::id();
+
+                // Send notification if user has push subscription
+                $user = User::where("id", $recipe->created_by)->first();
+                if ($user) {
+                    $pushSubscription = $user->configs["push_subscription"];
+
+                    if ($pushSubscription) {
+                        $notificationRequest = new SendNotificationRequest();
+                        $notificationRequest->replace([
+                            "subscription" => $pushSubscription,
+                            "title" => "Congratulations!",
+                            "body" => "Recipe " . $recipe->title . " has been published. Check it now!",
+                            "url" => env("APP_FE_URL") . "/recipe/{$recipe->id}",
+                            "image" => $recipe->image_url
+                        ]);
+
+                        $this->notificationController->sendNotification($notificationRequest);
+                    }
+                }
             }
 
             $recipe->save();
