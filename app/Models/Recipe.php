@@ -68,4 +68,9 @@ class Recipe extends Model
     {
         return $this->belongsTo(Method::class, "method_id");
     }
+
+    public function tools()
+    {
+        return $this->hasMany(RecipeTool::class);
+    }
 }

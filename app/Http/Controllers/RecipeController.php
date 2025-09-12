@@ -7,6 +7,7 @@ use App\Http\Requests\CrudRequest;
 use App\Http\Requests\Notification\SendNotificationRequest;
 use App\Http\Requests\Recipe\AddToBookRequest;
 use App\Http\Requests\Recipe\CreateRequest;
+use App\Http\Requests\Recipe\SetPrivacyRequest;
 use App\Http\Requests\Recipe\UpdateRequest;
 use App\Http\Requests\Recipe\UpdateStatusRequest;
 use App\Models\Recipe;
@@ -18,7 +19,6 @@ use Auth;
 use DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-use Mockery\Undefined;
 
 use function PHPSTORM_META\map;
 
@@ -247,6 +247,47 @@ class RecipeController extends Controller
         }
     }
 
+    public function delete(string $id)
+    {
+        try {
+            $recipe = Recipe::where("id", $id)->first();
+
+            // Delete image
+            $imageUrl = parse_url($recipe->image_url);
+            $this->deleteFile("s3", $imageUrl["path"]);
+
+            $recipe->forceDelete();
+
+            return $this->jsonResponse(true, $recipe);
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+            Log::error($e->getTraceAsString());
+            return $this->jsonResponse(false, null, $e->getMessage(), $e->getTrace(), 500);
+        }
+    }
+
+    public function setPrivacy(SetPrivacyRequest $request)
+    {
+        try {
+            $recipe = Recipe::find($request->id);
+
+            $configs = $recipe->configs;
+            if (array_key_exists("is_private", $recipe->configs)) {
+                $configs["is_private"] = $request->is_private;
+            }
+
+            $recipe->configs = $configs;
+
+            $recipe->save();
+
+            return $this->jsonResponse(data: $request->all());
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+            Log::error($e->getTraceAsString());
+            return $this->jsonResponse(false, null, $e->getMessage(), $e->getTrace(), 500);
+        }
+    }
+
     public function updateStatus(UpdateStatusRequest $request)
     {
         try {
@@ -259,33 +300,33 @@ class RecipeController extends Controller
 
             if ($request->status === RecipeStatus::APPROVED->value) {
                 $recipe->approved_at = now();
-                $recipe->approved_by = Auth::id();
+                $recipe->approved_by = $request->approved_by;
 
                 // Send notification if user has push subscription
-                $user = User::where("id", $recipe->created_by)->first();
-                if ($user) {
-                    $pushSubscription = $user->configs["push_subscription"];
+                // $user = User::where("id", $recipe->created_by)->first();
+                // if ($user) {
+                //     $pushSubscription = $user->configs["push_subscription"];
 
-                    if ($pushSubscription) {
-                        $notificationRequest = new SendNotificationRequest();
-                        $notificationRequest->replace([
-                            "subscription" => $pushSubscription,
-                            "title" => "Congratulations!",
-                            "body" => "Recipe " . $recipe->title . " has been published. Check it now!",
-                            "url" => env("APP_FE_URL") . "/recipe/{$recipe->id}",
-                            "image" => $recipe->image_url
-                        ]);
+                //     if ($pushSubscription) {
+                //         $notificationRequest = new SendNotificationRequest();
+                //         $notificationRequest->replace([
+                //             "subscription" => $pushSubscription,
+                //             "title" => "Congratulations!",
+                //             "body" => "Recipe " . $recipe->title . " has been published. Check it now!",
+                //             "url" => env("APP_FE_URL") . "/recipe/{$recipe->id}",
+                //             "image" => $recipe->image_url
+                //         ]);
 
-                        $this->notificationController->sendNotification($notificationRequest);
-                    }
-                }
+                //         $this->notificationController->sendNotification($notificationRequest);
+                //     }
+                // }
             }
 
             $recipe->save();
 
             DB::commit();
 
-            return $this->jsonResponse(data: $request->all());
+            return $this->jsonResponse(data: $recipe);
         } catch (\Exception $e) {
             Log::error($e->getMessage());
             Log::error($e->getTraceAsString());

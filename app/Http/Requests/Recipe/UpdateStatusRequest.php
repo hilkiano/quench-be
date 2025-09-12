@@ -14,8 +14,11 @@ class UpdateStatusRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        $user = Auth::user();
+        if ($this->hasHeader("X-Backoffice-Session")) {
+            return true;
+        }
 
+        $user = Auth::user();
         return $user->is_administrator;
     }
 
@@ -30,9 +33,9 @@ class UpdateStatusRequest extends FormRequest
             "id" => "required|exists:recipes,id",
             "status" => ["required", Rule::enum(RecipeStatus::class)],
             'reason' => [
-                Rule::requiredIf($this->status === RecipeStatus::REJECTED->value),
-                'string',
+                Rule::requiredIf($this->input('status') === RecipeStatus::REJECTED->value),
             ],
+            "approved_by" => "required|string"
         ];
     }
 }

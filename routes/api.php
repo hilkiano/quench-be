@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\AcceptJson;
+use App\Http\Middleware\BackofficeMiddleware;
 use App\Http\Middleware\CheckLoginSession;
 use App\Http\Middleware\RefreshToken;
 use Illuminate\Support\Facades\Route;
@@ -9,6 +10,7 @@ Route::group(['prefix' => 'v1', 'middleware' => AcceptJson::class], function () 
     $router->group(['namespace' => 'App\Http\Controllers'], function () use ($router) {
         $router->group(['prefix' => 'auth'], function () use ($router) {
             $router->post('/create', 'AuthController@create');
+            $router->post('/create-token', 'AuthController@createToken');
         });
 
         $router->group(['prefix' => 'data'], function () use ($router) {
@@ -45,6 +47,7 @@ Route::group(['prefix' => 'v1', 'middleware' => AcceptJson::class], function () 
             $router->post('/logout', 'AuthController@logout');
             $router->post('/delete-account', 'AuthController@deleteAccount');
             $router->post('/update-config', 'AuthController@updateConfig');
+            $router->get('/me', 'AuthController@me');
         });
 
         $router->group(['middleware' => RefreshToken::class], function () use ($router) {
@@ -58,6 +61,8 @@ Route::group(['prefix' => 'v1', 'middleware' => AcceptJson::class], function () 
             $router->patch('/update', 'RecipeController@update');
             $router->post('/update-status', 'RecipeController@updateStatus');
             $router->post('/add-to-book', 'RecipeController@addToBook');
+            $router->delete('/delete/{id}', 'RecipeController@delete');
+            $router->patch('/set-privacy', 'RecipeController@setPrivacy');
         });
 
         $router->group(['prefix' => 'draft', 'namespace' => 'App\Http\Controllers'], function () use ($router) {
@@ -65,6 +70,14 @@ Route::group(['prefix' => 'v1', 'middleware' => AcceptJson::class], function () 
             $router->delete('/delete/{id}', 'RecipeDraftController@delete');
             $router->post('/submit/{id}', 'RecipeDraftController@submitDraft');
             $router->post('/make/{id}', 'RecipeDraftController@makeDraft');
+            $router->post('/save-image', 'RecipeDraftController@saveImage');
+            $router->delete('/delete-image', 'RecipeDraftController@deleteImage');
+        });
+    });
+
+    $router->group(['prefix' => 'backoffice', 'middleware' => BackofficeMiddleware::class], function () use ($router) {
+        $router->group(['prefix' => 'recipe', 'namespace' => 'App\Http\Controllers'], function () use ($router) {
+            $router->post('/update-status', 'RecipeController@updateStatus');
         });
     });
 });
