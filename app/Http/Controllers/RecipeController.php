@@ -7,20 +7,21 @@ use App\Http\Requests\CrudRequest;
 use App\Http\Requests\Notification\SendNotificationRequest;
 use App\Http\Requests\Recipe\AddToBookRequest;
 use App\Http\Requests\Recipe\CreateRequest;
+use App\Http\Requests\Recipe\MyRecipeRequest;
+use App\Http\Requests\Recipe\RecipeBookRequest;
 use App\Http\Requests\Recipe\SetPrivacyRequest;
 use App\Http\Requests\Recipe\UpdateRequest;
 use App\Http\Requests\Recipe\UpdateStatusRequest;
 use App\Models\Recipe;
 use App\Models\RecipeIngredient;
 use App\Models\RecipeStep;
-use App\Models\User;
+use App\Models\UserRecipe;
 use App\Traits\GeneralHelpers;
 use Auth;
 use DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-
-use function PHPSTORM_META\map;
+use Request;
 
 class RecipeController extends Controller
 {
@@ -438,6 +439,75 @@ class RecipeController extends Controller
     {
         try {
             return $this->jsonResponse(data: Recipe::with('method')->where("status", "APPROVED")->inRandomOrder()->first());
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+            Log::error($e->getTraceAsString());
+            return $this->jsonResponse(false, null, $e->getMessage(), $e->getTrace(), 500);
+        }
+    }
+
+    public function myRecipeList(MyRecipeRequest $request)
+    {
+        try {
+            $query = Recipe::with(['method', 'user'])
+                ->whereHas('userRecipes', function ($q) {
+                    $q->where('user_id', Auth::id());
+                })
+                ->when(
+                    $request->has('global_filter') && $request->has('global_filter_columns'),
+                    function ($q) use ($request) {
+                        $columns = array_map('trim', explode(',', $request->global_filter_columns));
+
+                        $q->where(function ($sub) use ($columns, $request) {
+                            foreach ($columns as $column) {
+                                $sub->orWhere($column, 'LIKE', "%{$request->global_filter}%");
+                            }
+                        });
+                    }
+                )
+                ->paginate($request->limit ?? 20)
+                ->withQueryString();
+
+            $result = [
+                'total'     => $query->total(),
+                'prev_page'  => $query->previousPageUrl(),
+                'next_page'  => $query->nextPageUrl(),
+                'rows'      => $query->items(),
+                'page_count' => (int) ceil($query->total() / $query->perPage()),
+                'page'      => $query->currentPage()
+            ];
+
+            return $this->jsonResponse(data: $result);
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+            Log::error($e->getTraceAsString());
+            return $this->jsonResponse(false, null, $e->getMessage(), $e->getTrace(), 500);
+        }
+    }
+
+    public function addToRecipeBook(RecipeBookRequest $request)
+    {
+        try {
+            UserRecipe::insert([
+                "user_id" => Auth::id(),
+                "recipe_id" => $request->id,
+                "created_at" => now(),
+                "updated_at" => now()
+            ]);
+
+            return $this->jsonResponse();
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+            Log::error($e->getTraceAsString());
+            return $this->jsonResponse(false, null, $e->getMessage(), $e->getTrace(), 500);
+        }
+    }
+    public function removeFromRecipeBook(RecipeBookRequest $request)
+    {
+        try {
+            UserRecipe::where("user_id", Auth::id())->where("recipe_id", $request->id)->first()->delete();
+
+            return $this->jsonResponse();
         } catch (\Exception $e) {
             Log::error($e->getMessage());
             Log::error($e->getTraceAsString());

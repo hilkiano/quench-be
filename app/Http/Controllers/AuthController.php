@@ -165,7 +165,7 @@ class AuthController extends Controller
 
             $results = [
                 "user"  => Auth::user(),
-                "token_expired_at" => Carbon::createFromTimestamp($payload('exp'))->format('Y-m-d\TH:i:s.u\Z'),
+                // "token_expired_at" => Carbon::createFromTimestamp($payload('exp'))->format('Y-m-d\TH:i:s.u\Z'),
             ];
 
             return $this->jsonResponse(

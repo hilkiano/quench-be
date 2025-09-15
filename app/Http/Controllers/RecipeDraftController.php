@@ -13,6 +13,7 @@ use App\Models\RecipeDraft;
 use App\Models\RecipeIngredient;
 use App\Models\RecipeStep;
 use App\Models\RecipeTool;
+use App\Models\UserRecipe;
 use Illuminate\Support\Facades\Log;
 use App\Traits\GeneralHelpers;
 use Auth;
@@ -134,21 +135,26 @@ class RecipeDraftController extends Controller
 
                 // If draft has recipe_id, update the recipe. Otherwise, create.
                 $initialConfigs = null;
+                $initialStatus = null;
                 if ($draft->recipe_id) {
                     $recipe = Recipe::find($draft->recipe_id);
                 } else {
                     $recipe = new Recipe();
                     $initialConfigs = ["is_private" => false];
+                    $initialStatus = RecipeStatus::SUBMITTED->value;
                 }
-
                 $recipe->title = $draft->data["basic_info"]["title"];
                 $recipe->method_id = (int) $draft->data["basic_info"]["method_id"];
                 $recipe->description = $draft->data["basic_info"]["description"];
-                $recipe->status = RecipeStatus::SUBMITTED->value;
+
                 $recipe->language = $draft->data["basic_info"]["language"];
 
                 if ($initialConfigs) {
                     $recipe->configs = $initialConfigs;
+                }
+
+                if ($initialStatus) {
+                    $recipe->status = $initialStatus;
                 }
 
                 $recipe->created_by = Auth::id();
@@ -166,6 +172,7 @@ class RecipeDraftController extends Controller
                 $draftImage = parse_url($draft->data["basic_info"]["image"]);
                 $newPath = env("APP_ENV") === "local" ? "/development/recipes/{$recipe->id}" : "/recipes/{$recipe->id}";
                 $copyImage = $this->copyFile("s3", $draftImage["path"], $newPath . "/" . basename($draftImage["path"]));
+                $this->deleteFile("s3", $draftImage["path"]);
 
                 if ($copyImage) {
                     Recipe::find($recipe->id)->update([
@@ -223,10 +230,10 @@ class RecipeDraftController extends Controller
                     $newStep->created_by = Auth::id();
                     $newStep->updated_by = Auth::id();
 
-
                     $newStep->save();
                 }
 
+                // Metadata
                 if (!$draft->recipe_id) {
                     $metadataRequest = new CrudRequest();
                     $metadataRequest->replace([
@@ -235,6 +242,22 @@ class RecipeDraftController extends Controller
                         ]
                     ]);
                     $this->crudController->create($metadataRequest, "RecipeMetadata");
+                }
+
+                // User Recipe
+                if (!$draft->recipe_id) {
+                    $userRecipe = UserRecipe::where("user_id", Auth::id())->where("recipe_id", $recipe->id)->exists();
+
+                    if (!$userRecipe) {
+                        $userRecipeRequest = new CrudRequest();
+                        $userRecipeRequest->replace([
+                            "payload" => [
+                                "user_id" => Auth::id(),
+                                "recipe_id" => $recipe->id
+                            ]
+                        ]);
+                        $this->crudController->create($userRecipeRequest, "UserRecipe");
+                    }
                 }
 
                 // Delete draft
@@ -279,8 +302,11 @@ class RecipeDraftController extends Controller
             $newDraft->save();
 
             // Copy image
+            $data = $newDraft->data;
+            $data["basic_info"]["image"] = $this->copyToDraftImage($recipe->image_url, $newDraft->id);
+
             RecipeDraft::where("id", $newDraft->id)->first()->update([
-                "image_url" => $this->copyToDraftImage($recipe->image_url, $newDraft->id)
+                "data" => $data
             ]);
 
             DB::commit();
@@ -317,13 +343,14 @@ class RecipeDraftController extends Controller
 
         foreach ($recipe->tools as $tool) {
             array_push($dataContent["tools"], [
-                "name"  => $ingredient->name,
-                "quantity" => $ingredient->quantity
+                "name"  => $tool->name,
+                "quantity" => $tool->quantity
             ]);
         }
 
         foreach ($recipe->steps as $step) {
             array_push($dataContent["steps"], [
+                "uuid" => Str::uuid(),
                 "step"  => $step->step,
                 "order" => $step->order,
                 "timer_seconds" => $step->timer_seconds

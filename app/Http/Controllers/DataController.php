@@ -7,11 +7,7 @@ use App\Http\Requests\Data\ListRequest;
 use App\Http\Requests\Data\StatisticRequest;
 use App\Models\Recipe;
 use App\Traits\GeneralHelpers;
-use Auth;
-use DB;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
-use Str;
 
 class DataController extends Controller
 {
@@ -92,7 +88,11 @@ class DataController extends Controller
                     foreach ($filterObj as $filter) {
                         if ($model->getConnection()->getSchemaBuilder()->hasColumn($model->getTable(), $filter->id)) {
                             if ($filter->type === "where") {
-                                $query->where($filter->id, $filter->value);
+                                if (property_exists($filter, "jsonParam")) {
+                                    $query->where($filter->id . "->" . $filter->jsonParam, $filter->value);
+                                } else {
+                                    $query->where($filter->id, $filter->value);
+                                }
                             }
 
                             if ($filter->type === "where_in") {

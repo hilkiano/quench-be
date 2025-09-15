@@ -63,6 +63,11 @@ Route::group(['prefix' => 'v1', 'middleware' => AcceptJson::class], function () 
             $router->post('/add-to-book', 'RecipeController@addToBook');
             $router->delete('/delete/{id}', 'RecipeController@delete');
             $router->patch('/set-privacy', 'RecipeController@setPrivacy');
+            $router->get('/my-recipe/list', 'RecipeController@myRecipeList');
+            $router->group(['prefix' => 'recipe-book'], function () use ($router) {
+                $router->put('/create', 'RecipeController@addToRecipeBook');
+                $router->delete('/delete', 'RecipeController@removeFromRecipeBook');
+            });
         });
 
         $router->group(['prefix' => 'draft', 'namespace' => 'App\Http\Controllers'], function () use ($router) {
