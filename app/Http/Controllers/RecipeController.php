@@ -7,20 +7,21 @@ use App\Http\Requests\CrudRequest;
 use App\Http\Requests\Notification\SendNotificationRequest;
 use App\Http\Requests\Recipe\AddToBookRequest;
 use App\Http\Requests\Recipe\CreateRequest;
+use App\Http\Requests\Recipe\MyRecipeRequest;
+use App\Http\Requests\Recipe\RecipeBookRequest;
+use App\Http\Requests\Recipe\SetPrivacyRequest;
 use App\Http\Requests\Recipe\UpdateRequest;
 use App\Http\Requests\Recipe\UpdateStatusRequest;
 use App\Models\Recipe;
 use App\Models\RecipeIngredient;
 use App\Models\RecipeStep;
-use App\Models\User;
+use App\Models\UserRecipe;
 use App\Traits\GeneralHelpers;
 use Auth;
 use DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-use Mockery\Undefined;
-
-use function PHPSTORM_META\map;
+use Request;
 
 class RecipeController extends Controller
 {
@@ -247,6 +248,47 @@ class RecipeController extends Controller
         }
     }
 
+    public function delete(string $id)
+    {
+        try {
+            $recipe = Recipe::where("id", $id)->first();
+
+            // Delete image
+            $imageUrl = parse_url($recipe->image_url);
+            $this->deleteFile("s3", $imageUrl["path"]);
+
+            $recipe->forceDelete();
+
+            return $this->jsonResponse(true, $recipe);
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+            Log::error($e->getTraceAsString());
+            return $this->jsonResponse(false, null, $e->getMessage(), $e->getTrace(), 500);
+        }
+    }
+
+    public function setPrivacy(SetPrivacyRequest $request)
+    {
+        try {
+            $recipe = Recipe::find($request->id);
+
+            $configs = $recipe->configs;
+            if (array_key_exists("is_private", $recipe->configs)) {
+                $configs["is_private"] = $request->is_private;
+            }
+
+            $recipe->configs = $configs;
+
+            $recipe->save();
+
+            return $this->jsonResponse(data: $request->all());
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+            Log::error($e->getTraceAsString());
+            return $this->jsonResponse(false, null, $e->getMessage(), $e->getTrace(), 500);
+        }
+    }
+
     public function updateStatus(UpdateStatusRequest $request)
     {
         try {
@@ -259,33 +301,33 @@ class RecipeController extends Controller
 
             if ($request->status === RecipeStatus::APPROVED->value) {
                 $recipe->approved_at = now();
-                $recipe->approved_by = Auth::id();
+                $recipe->approved_by = $request->approved_by;
 
                 // Send notification if user has push subscription
-                $user = User::where("id", $recipe->created_by)->first();
-                if ($user) {
-                    $pushSubscription = $user->configs["push_subscription"];
+                // $user = User::where("id", $recipe->created_by)->first();
+                // if ($user) {
+                //     $pushSubscription = $user->configs["push_subscription"];
 
-                    if ($pushSubscription) {
-                        $notificationRequest = new SendNotificationRequest();
-                        $notificationRequest->replace([
-                            "subscription" => $pushSubscription,
-                            "title" => "Congratulations!",
-                            "body" => "Recipe " . $recipe->title . " has been published. Check it now!",
-                            "url" => env("APP_FE_URL") . "/recipe/{$recipe->id}",
-                            "image" => $recipe->image_url
-                        ]);
+                //     if ($pushSubscription) {
+                //         $notificationRequest = new SendNotificationRequest();
+                //         $notificationRequest->replace([
+                //             "subscription" => $pushSubscription,
+                //             "title" => "Congratulations!",
+                //             "body" => "Recipe " . $recipe->title . " has been published. Check it now!",
+                //             "url" => env("APP_FE_URL") . "/recipe/{$recipe->id}",
+                //             "image" => $recipe->image_url
+                //         ]);
 
-                        $this->notificationController->sendNotification($notificationRequest);
-                    }
-                }
+                //         $this->notificationController->sendNotification($notificationRequest);
+                //     }
+                // }
             }
 
             $recipe->save();
 
             DB::commit();
 
-            return $this->jsonResponse(data: $request->all());
+            return $this->jsonResponse(data: $recipe);
         } catch (\Exception $e) {
             Log::error($e->getMessage());
             Log::error($e->getTraceAsString());
@@ -397,6 +439,75 @@ class RecipeController extends Controller
     {
         try {
             return $this->jsonResponse(data: Recipe::with('method')->where("status", "APPROVED")->inRandomOrder()->first());
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+            Log::error($e->getTraceAsString());
+            return $this->jsonResponse(false, null, $e->getMessage(), $e->getTrace(), 500);
+        }
+    }
+
+    public function myRecipeList(MyRecipeRequest $request)
+    {
+        try {
+            $query = Recipe::with(['method', 'user'])
+                ->whereHas('userRecipes', function ($q) {
+                    $q->where('user_id', Auth::id());
+                })
+                ->when(
+                    $request->has('global_filter') && $request->has('global_filter_columns'),
+                    function ($q) use ($request) {
+                        $columns = array_map('trim', explode(',', $request->global_filter_columns));
+
+                        $q->where(function ($sub) use ($columns, $request) {
+                            foreach ($columns as $column) {
+                                $sub->orWhere($column, 'LIKE', "%{$request->global_filter}%");
+                            }
+                        });
+                    }
+                )
+                ->paginate($request->limit ?? 20)
+                ->withQueryString();
+
+            $result = [
+                'total'     => $query->total(),
+                'prev_page'  => $query->previousPageUrl(),
+                'next_page'  => $query->nextPageUrl(),
+                'rows'      => $query->items(),
+                'page_count' => (int) ceil($query->total() / $query->perPage()),
+                'page'      => $query->currentPage()
+            ];
+
+            return $this->jsonResponse(data: $result);
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+            Log::error($e->getTraceAsString());
+            return $this->jsonResponse(false, null, $e->getMessage(), $e->getTrace(), 500);
+        }
+    }
+
+    public function addToRecipeBook(RecipeBookRequest $request)
+    {
+        try {
+            UserRecipe::insert([
+                "user_id" => Auth::id(),
+                "recipe_id" => $request->id,
+                "created_at" => now(),
+                "updated_at" => now()
+            ]);
+
+            return $this->jsonResponse();
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+            Log::error($e->getTraceAsString());
+            return $this->jsonResponse(false, null, $e->getMessage(), $e->getTrace(), 500);
+        }
+    }
+    public function removeFromRecipeBook(RecipeBookRequest $request)
+    {
+        try {
+            UserRecipe::where("user_id", Auth::id())->where("recipe_id", $request->id)->first()->delete();
+
+            return $this->jsonResponse();
         } catch (\Exception $e) {
             Log::error($e->getMessage());
             Log::error($e->getTraceAsString());

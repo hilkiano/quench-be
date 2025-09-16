@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Traits\CreateStringId;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Auth;
 
 class Recipe extends Model
 {
@@ -67,5 +68,21 @@ class Recipe extends Model
     public function method()
     {
         return $this->belongsTo(Method::class, "method_id");
+    }
+
+    public function tools()
+    {
+        return $this->hasMany(RecipeTool::class);
+    }
+
+    public function userRecipes()
+    {
+        return $this->hasMany(UserRecipe::class);
+    }
+
+    public function isSavedByAuthUser()
+    {
+        return $this->hasOne(UserRecipe::class)
+            ->where('user_id', Auth::id());
     }
 }

@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Http\Requests\RecipeDraft;
+namespace App\Http\Requests\Recipe;
 
 use Auth;
 use Illuminate\Foundation\Http\FormRequest;
 
-class SaveRequest extends FormRequest
+class SetPrivacyRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -23,11 +23,8 @@ class SaveRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'id' => 'nullable',
-            'basic_info' => 'nullable|json',
-            'steps' => 'nullable|json',
-            'ingredients' => 'nullable|json',
-            'tools' => 'nullable|json'
+            "id" => "required|string",
+            "is_private" => "required|boolean"
         ];
     }
 }

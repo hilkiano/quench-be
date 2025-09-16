@@ -62,9 +62,10 @@ trait GeneralHelpers
     {
         $manager = new ImageManager(new Driver());
         $image = $manager->read($file);
-        $name = $file->hashName();
+        $webpData = $image->toWebp(75);
+        $name = uniqid() . ".webp";
         $destination = env("APP_ENV") === "local" ? "development/{$dir}/{$name}" : "{$dir}/{$name}";
-        $put = Storage::disk($disk)->put($destination, $image->encodeByMediaType());
+        $put = Storage::disk($disk)->put($destination, $webpData);
         if ($put) {
             return Storage::disk($disk)->url($destination);
         }

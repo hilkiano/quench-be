@@ -4,18 +4,24 @@ namespace App\Http\Controllers;
 
 use App\Enums\RecipeStatus;
 use App\Http\Requests\CrudRequest;
+use App\Http\Requests\RecipeDraft\DeleteImageRequest;
 use App\Http\Requests\RecipeDraft\DeleteRequest;
+use App\Http\Requests\RecipeDraft\ImageRequest;
 use App\Http\Requests\RecipeDraft\SaveRequest;
 use App\Models\Recipe;
 use App\Models\RecipeDraft;
 use App\Models\RecipeIngredient;
 use App\Models\RecipeStep;
+use App\Models\RecipeTool;
+use App\Models\UserRecipe;
 use Illuminate\Support\Facades\Log;
 use App\Traits\GeneralHelpers;
 use Auth;
 use DB;
 use Illuminate\Support\Facades\Storage;
 use Str;
+use Intervention\Image\ImageManager;
+use Intervention\Image\Drivers\Imagick\Driver;
 
 class RecipeDraftController extends Controller
 {
@@ -40,16 +46,6 @@ class RecipeDraftController extends Controller
                 $draft->data = $value;
                 $draft->created_by = Auth::id();
                 $draft->updated_by = Auth::id();
-
-                if ($request->image) {
-                    // Delete old image
-                    if ($draft->image_url) {
-                        $parsedUrl = parse_url($draft->image_url);
-                        $this->deleteFile("s3", $parsedUrl["path"]);
-                    }
-
-                    $draft->image_url = $this->storeImage("s3", $request->file("image"), "draft/$request->id");
-                }
 
                 $draft->save();
             } else {
@@ -95,10 +91,8 @@ class RecipeDraftController extends Controller
         try {
             $draft = RecipeDraft::find($id);
 
-            if ($draft->image_url) {
-                $path = env("APP_ENV") === "local" ? "development/draft/{$draft->id}" : "draft/{$draft->id}";
-                $this->deleteDirectory("s3", $path);
-            }
+            $path = env("APP_ENV") === "local" ? "development/draft/{$draft->id}" : "draft/{$draft->id}";
+            $this->deleteDirectory("s3", $path);
 
             $draft->delete();
 
@@ -114,6 +108,7 @@ class RecipeDraftController extends Controller
     {
         $arrayData = [
             "basic_info" => $request->basic_info ? json_decode($request->basic_info) : null,
+            "tools" => $request->tools ? json_decode($request->tools) : null,
             "ingredients" => $request->ingredients ? json_decode($request->ingredients) : null,
             "steps" => $request->steps ? json_decode($request->steps) : null,
         ];
@@ -122,6 +117,7 @@ class RecipeDraftController extends Controller
             $oldData = RecipeDraft::find($request->id);
 
             $arrayData["basic_info"] = $oldData->data["basic_info"] ? array_replace($oldData->data["basic_info"], (array) $arrayData["basic_info"]) : (array) $arrayData["basic_info"];
+            $arrayData["tools"] = $request->tools ? (array) $arrayData["tools"] : $oldData->data["tools"];
             $arrayData["ingredients"] = $request->ingredients ? (array) $arrayData["ingredients"] : $oldData->data["ingredients"];
             $arrayData["steps"] = $request->steps ? (array) $arrayData["steps"] : $oldData->data["steps"];
         }
@@ -138,17 +134,29 @@ class RecipeDraftController extends Controller
                 DB::beginTransaction();
 
                 // If draft has recipe_id, update the recipe. Otherwise, create.
+                $initialConfigs = null;
+                $initialStatus = null;
                 if ($draft->recipe_id) {
                     $recipe = Recipe::find($draft->recipe_id);
                 } else {
                     $recipe = new Recipe();
+                    $initialConfigs = ["is_private" => false];
+                    $initialStatus = RecipeStatus::SUBMITTED->value;
                 }
-
                 $recipe->title = $draft->data["basic_info"]["title"];
                 $recipe->method_id = (int) $draft->data["basic_info"]["method_id"];
                 $recipe->description = $draft->data["basic_info"]["description"];
-                $recipe->status = RecipeStatus::SUBMITTED->value;
+
                 $recipe->language = $draft->data["basic_info"]["language"];
+
+                if ($initialConfigs) {
+                    $recipe->configs = $initialConfigs;
+                }
+
+                if ($initialStatus) {
+                    $recipe->status = $initialStatus;
+                }
+
                 $recipe->created_by = Auth::id();
                 $recipe->updated_by = Auth::id();
 
@@ -161,14 +169,32 @@ class RecipeDraftController extends Controller
                 }
 
                 // Copy image
-                $draftImage = parse_url($draft->image_url);
+                $draftImage = parse_url($draft->data["basic_info"]["image"]);
                 $newPath = env("APP_ENV") === "local" ? "/development/recipes/{$recipe->id}" : "/recipes/{$recipe->id}";
                 $copyImage = $this->copyFile("s3", $draftImage["path"], $newPath . "/" . basename($draftImage["path"]));
+                $this->deleteFile("s3", $draftImage["path"]);
 
                 if ($copyImage) {
                     Recipe::find($recipe->id)->update([
                         "image_url" => Storage::disk("s3")->url($newPath . "/" . basename($draftImage["path"]))
                     ]);
+                }
+
+                // If draft has recipe_id, delete all tools. Otherwise, only create.
+                if ($draft->recipe_id) {
+                    RecipeTool::where("recipe_id", $draft->recipe_id)->delete();
+                }
+
+                foreach ($draft->data["tools"] as $tool) {
+                    $newTool = new RecipeTool();
+
+                    $newTool->recipe_id = $recipe->id;
+                    $newTool->name = $tool["name"];
+                    $newTool->quantity = $tool["quantity"];
+                    $newTool->created_by = Auth::id();
+                    $newTool->updated_by = Auth::id();
+
+                    $newTool->save();
                 }
 
                 // If draft has recipe_id, delete all ingredients. Otherwise, only create.
@@ -204,10 +230,10 @@ class RecipeDraftController extends Controller
                     $newStep->created_by = Auth::id();
                     $newStep->updated_by = Auth::id();
 
-
                     $newStep->save();
                 }
 
+                // Metadata
                 if (!$draft->recipe_id) {
                     $metadataRequest = new CrudRequest();
                     $metadataRequest->replace([
@@ -216,6 +242,22 @@ class RecipeDraftController extends Controller
                         ]
                     ]);
                     $this->crudController->create($metadataRequest, "RecipeMetadata");
+                }
+
+                // User Recipe
+                if (!$draft->recipe_id) {
+                    $userRecipe = UserRecipe::where("user_id", Auth::id())->where("recipe_id", $recipe->id)->exists();
+
+                    if (!$userRecipe) {
+                        $userRecipeRequest = new CrudRequest();
+                        $userRecipeRequest->replace([
+                            "payload" => [
+                                "user_id" => Auth::id(),
+                                "recipe_id" => $recipe->id
+                            ]
+                        ]);
+                        $this->crudController->create($userRecipeRequest, "UserRecipe");
+                    }
                 }
 
                 // Delete draft
@@ -247,7 +289,7 @@ class RecipeDraftController extends Controller
                 return $this->jsonResponse(data: $existingDraft->id);
             }
 
-            $recipe = Recipe::with(["steps", "ingredients"])->find($id);
+            $recipe = Recipe::with(["steps", "tools", "ingredients"])->find($id);
 
             DB::beginTransaction();
             $newDraft = new RecipeDraft();
@@ -260,8 +302,11 @@ class RecipeDraftController extends Controller
             $newDraft->save();
 
             // Copy image
+            $data = $newDraft->data;
+            $data["basic_info"]["image"] = $this->copyToDraftImage($recipe->image_url, $newDraft->id);
+
             RecipeDraft::where("id", $newDraft->id)->first()->update([
-                "image_url" => $this->copyToDraftImage($recipe->image_url, $newDraft->id)
+                "data" => $data
             ]);
 
             DB::commit();
@@ -284,21 +329,28 @@ class RecipeDraftController extends Controller
                 "language" => $recipe->language
             ],
             "steps" => [],
+            "tools" => [],
             "ingredients" => []
         ];
 
         foreach ($recipe->ingredients as $ingredient) {
             array_push($dataContent["ingredients"], [
-                "uuid"  => Str::uuid(),
                 "name"  => $ingredient->name,
                 "unit_id" => $ingredient->unit_id,
                 "quantity" => $ingredient->quantity
             ]);
         }
 
+        foreach ($recipe->tools as $tool) {
+            array_push($dataContent["tools"], [
+                "name"  => $tool->name,
+                "quantity" => $tool->quantity
+            ]);
+        }
+
         foreach ($recipe->steps as $step) {
             array_push($dataContent["steps"], [
-                "uuid"  => Str::uuid(),
+                "uuid" => Str::uuid(),
                 "step"  => $step->step,
                 "order" => $step->order,
                 "timer_seconds" => $step->timer_seconds
@@ -317,5 +369,36 @@ class RecipeDraftController extends Controller
         Storage::disk("s3")->copy($sourceUrl["path"], $targetPath);
 
         return Storage::disk("s3")->url($targetPath);
+    }
+
+    public function saveImage(ImageRequest $request)
+    {
+        try {
+            $image = $request->file("image");
+            $id = $request->input("id");
+
+            $url = $this->storeImage("s3", $image, "draft/{$id}");
+
+            return $this->jsonResponse(data: $url);
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+            Log::error($e->getTraceAsString());
+            return $this->jsonResponse(false, null, $e->getMessage(), $e->getTrace(), 500);
+        }
+    }
+
+    public function deleteImage(DeleteImageRequest $request)
+    {
+        try {
+            $imageUrl = parse_url($request->image_path);
+
+            $this->deleteFile("s3", $imageUrl["path"]);
+
+            return $this->jsonResponse();
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+            Log::error($e->getTraceAsString());
+            return $this->jsonResponse(false, null, $e->getMessage(), $e->getTrace(), 500);
+        }
     }
 }

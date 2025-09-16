@@ -74,6 +74,51 @@ class AuthController extends Controller
         }
     }
 
+    public function createToken(Request $request)
+    {
+        try {
+            // Check user already registered or not
+            $modelUser = $this->checkModel("User");
+
+            if ($modelUser) {
+                $user = $modelUser->where('email', $request->user["email"])->first();
+
+                if (!$user) {
+                    $user = $modelUser->create([
+                        "email" => $request->user["email"],
+                        "avatar_url" => $request->user["photo"]
+                    ]);
+                }
+            }
+
+            // Create token
+            if (!$token = Auth::login($user)) {
+                return $this->jsonResponse(false, null, "Wrong credentials.", null, 401);
+            }
+            session()->regenerate();
+
+            // Update last login
+            $configs = $user->configs;
+
+            if ($configs) {
+                $user->configs = [...$configs, "last_login" => Carbon::now()];
+            } else {
+                $user->configs = ["last_login" => Carbon::now()];
+            }
+
+            $user->save();
+
+            return $this->jsonResponse(data: [
+                "token" => $token,
+                "user" => $user
+            ]);
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+            Log::error($e->getTraceAsString());
+            return $this->jsonResponse(false, null, $e->getMessage(), $e->getTrace(), 500);
+        }
+    }
+
     private function findOrCreateUser(User $socialiteUser)
     {
         $modelUser = $this->checkModel("User");
@@ -120,7 +165,7 @@ class AuthController extends Controller
 
             $results = [
                 "user"  => Auth::user(),
-                "token_expired_at" => Carbon::createFromTimestamp($payload('exp'))->format('Y-m-d\TH:i:s.u\Z'),
+                // "token_expired_at" => Carbon::createFromTimestamp($payload('exp'))->format('Y-m-d\TH:i:s.u\Z'),
             ];
 
             return $this->jsonResponse(
@@ -142,6 +187,8 @@ class AuthController extends Controller
                 "token_expired_at" => Carbon::createFromTimestamp(JWTAuth::parseToken()->getClaim("exp"))->format('Y-m-d\TH:i:s.u\Z'),
             ];
 
+            Log::info(print_r("CALLED", true));
+
             return $this->jsonResponse(
                 data: $results,
             );
@@ -157,11 +204,11 @@ class AuthController extends Controller
         try {
             Auth::logout();
 
-            $cookie = Cookie::forget("login_session");
+            // $cookie = Cookie::forget("login_session");
             $removeToken = JWTAuth::invalidate(JWTAuth::getToken());
 
             if ($removeToken) {
-                return $this->jsonResponse(message: "You are logged out.", cookieData: $cookie);
+                return $this->jsonResponse(message: "You are logged out.");
             }
         } catch (\Exception $e) {
             Log::error($e->getMessage());
