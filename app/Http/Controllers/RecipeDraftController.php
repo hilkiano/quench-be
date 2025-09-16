@@ -286,7 +286,8 @@ class RecipeDraftController extends Controller
         try {
             $existingDraft = RecipeDraft::where("recipe_id", $id)->first();
             if ($existingDraft) {
-                return $this->jsonResponse(data: $existingDraft->id);
+                // DELETE DRAFT
+                $this->delete($existingDraft->id);
             }
 
             $recipe = Recipe::with(["steps", "tools", "ingredients"])->find($id);
