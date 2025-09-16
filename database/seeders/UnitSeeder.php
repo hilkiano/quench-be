@@ -30,6 +30,10 @@ class UnitSeeder extends Seeder
             "name" => "tablespoon",
             "abbreviation" => "tbsp"
         ],
+        [
+            "name" => "pieces",
+            "abbreviation" => "pcs"
+        ],
     ];
     /**
      * Run the database seeds.
