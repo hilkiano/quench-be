@@ -438,7 +438,13 @@ class RecipeController extends Controller
     public function getRandom()
     {
         try {
-            return $this->jsonResponse(data: Recipe::with('method')->where("status", "APPROVED")->inRandomOrder()->first());
+            $recipe = Recipe::with('method')
+                ->where("status", "APPROVED")
+                ->where("configs->is_private", false)
+                ->inRandomOrder()
+                ->first();
+
+            return $this->jsonResponse(data: $recipe);
         } catch (\Exception $e) {
             Log::error($e->getMessage());
             Log::error($e->getTraceAsString());
