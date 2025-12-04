@@ -14,10 +14,12 @@ use App\Models\RecipeIngredient;
 use App\Models\RecipeStep;
 use App\Models\RecipeTool;
 use App\Models\UserRecipe;
+use App\Notifications\SlackNotification;
 use Illuminate\Support\Facades\Log;
 use App\Traits\GeneralHelpers;
 use Auth;
 use DB;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Str;
 use Intervention\Image\ImageManager;
@@ -129,6 +131,7 @@ class RecipeDraftController extends Controller
     {
         try {
             $draft = RecipeDraft::find($id);
+            $notify = false;
 
             if ($draft) {
                 DB::beginTransaction();
@@ -142,6 +145,8 @@ class RecipeDraftController extends Controller
                     $recipe = new Recipe();
                     $initialConfigs = ["is_private" => false];
                     $initialStatus = RecipeStatus::SUBMITTED->value;
+
+                    $notify = true;
                 }
                 $recipe->title = $draft->data["basic_info"]["title"];
                 $recipe->method_id = (int) $draft->data["basic_info"]["method_id"];
@@ -161,6 +166,10 @@ class RecipeDraftController extends Controller
                 $recipe->updated_by = Auth::id();
 
                 $recipe->save();
+
+                if ($notify) {
+                    $this->slackNotify($recipe);
+                }
 
                 // If draft has recipe_id, delete old image and copy from draft
                 if ($draft->recipe_id) {
@@ -401,5 +410,10 @@ class RecipeDraftController extends Controller
             Log::error($e->getTraceAsString());
             return $this->jsonResponse(false, null, $e->getMessage(), $e->getTrace(), 500);
         }
+    }
+
+    private function slackNotify($recipe)
+    {
+        Notification::route('slack', env('SLACK_BOT_WEBHOOK_URL'))->notify(new SlackNotification($recipe));
     }
 }

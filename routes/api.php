@@ -39,6 +39,8 @@ Route::group(['prefix' => 'v1', 'middleware' => AcceptJson::class], function () 
         $router->group(['prefix' => 'push'], function () use ($router) {
             $router->post('/send', 'NotificationController@sendNotification');
         });
+
+        $router->post('to-slack', 'SlackController@notify');
     });
 
     // Needs login session
