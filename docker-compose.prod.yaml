@@ -4,6 +4,16 @@ services:
     container_name: quench-be
     restart: unless-stopped
     working_dir: /var/www
+    environment: &env-vars
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_PASSWORD_BACKOFFICE=${DB_PASSWORD_BACKOFFICE}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - IPGEOLOCATION_KEY=${IPGEOLOCATION_KEY}
+      - SLACK_BOT_USER_OAUTH_TOKEN=${SLACK_BOT_USER_OAUTH_TOKEN}
     env_file:
       - .env
     volumes:
@@ -14,14 +24,13 @@ services:
       - "host.docker.internal:host-gateway"
     networks:
       - quench-net
-    # Resource Management
     deploy:
       resources:
         limits:
-          cpus: "0.50" # Max 50% of a single CPU core
-          memory: 512M # Hard limit (container will restart if exceeded)
+          cpus: "0.50"
+          memory: 512M
         reservations:
-          memory: 128M # Soft limit (guaranteed memory)
+          memory: 128M
 
   worker:
     image: registry.hilkiano.com/quench-be:latest
@@ -29,6 +38,7 @@ services:
     restart: unless-stopped
     working_dir: /var/www
     command: php artisan queue:work --sleep=3 --tries=3
+    environment: *env-vars
     env_file:
       - .env
     volumes:
@@ -40,7 +50,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.30" # Workers are usually less intensive unless doing heavy processing
+          cpus: "0.30"
           memory: 256M
         reservations:
           memory: 64M
@@ -50,6 +60,5 @@ networks:
     driver: bridge
     ipam:
       config:
-        # This locks the network range so your UFW rules don't break
         - subnet: 172.21.0.0/16
           gateway: 172.21.0.1

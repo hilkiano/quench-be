@@ -32,7 +32,6 @@ jobs:
         with:
           context: .
           push: true
-          # Make sure to update the tag name to quench-be or similar
           tags: registry.hilkiano.com/quench-be:latest
           cache-from: type=registry,ref=registry.hilkiano.com/quench-be:buildcache
           cache-to: type=registry,ref=registry.hilkiano.com/quench-be:buildcache,mode=max
@@ -55,6 +54,20 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          # PASS ALL SECRETS AS ENV TO THE SCRIPT
+          envs: DB_PASSWORD,DB_PASSWORD_BACKOFFICE,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,JWT_SECRET,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,IPGEOLOCATION_KEY,SLACK_BOT_USER_OAUTH_TOKEN
+        # Note: We use the 'env' keyword below to map GitHub Secrets to the shell variables above
+        env:
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_PASSWORD_BACKOFFICE: ${{ secrets.DB_PASSWORD_BACKOFFICE }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          IPGEOLOCATION_KEY: ${{ secrets.IPGEOLOCATION_KEY }}
+          SLACK_BOT_USER_OAUTH_TOKEN: ${{ secrets.SLACK_BOT_USER_OAUTH_TOKEN }}
+        with:
           script: |
             set -e
 
@@ -64,21 +77,21 @@ jobs:
 
             cd ~/quench-be
 
+            # Pulling doesn't need secrets, but Up does
             docker compose -f docker-compose.prod.yaml pull
+
+            # Docker Compose will automatically pick up the 'envs' we passed into the ssh-action
             docker compose -f docker-compose.prod.yaml up -d --remove-orphans
 
-            # Give the container a moment to initialize
             sleep 5
 
-            # 1. FIX PERMISSIONS FIRST (as root)
-            # This ensures the next commands have the right to modify the files
+            # 1. FIX PERMISSIONS
             docker exec -u root quench-be sh -c "
               chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache &&
               chmod -R 775 /var/www/storage /var/www/bootstrap/cache
             "
 
-            # 2. RUN ARTISAN COMMANDS AS THE WEB USER
-            # Using -u www-data prevents the cache from being "re-locked" by root
+            # 2. RUN ARTISAN COMMANDS
             docker exec -u www-data quench-be php artisan config:clear
             docker exec -u www-data quench-be php artisan cache:clear
             docker exec -u www-data quench-be php artisan view:clear
