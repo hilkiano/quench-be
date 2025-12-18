@@ -55,6 +55,11 @@ USER root
 RUN chown -R www-data:www-data storage bootstrap/cache \
  && chmod -R 775 storage bootstrap/cache
 
+RUN echo "upload_max_filesize=20M" > /usr/local/etc/php/conf.d/uploads.ini \
+ && echo "post_max_size=25M" >> /usr/local/etc/php/conf.d/uploads.ini \
+ && echo "memory_limit=512M" >> /usr/local/etc/php/conf.d/uploads.ini \
+ && chmod 1777 /tmp
+
 # Use non-root user
 USER www-data
 
