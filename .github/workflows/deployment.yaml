@@ -82,13 +82,19 @@ jobs:
             sleep 5
 
             docker exec -u root quench-be sh -c "
-              chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache &&
+              mkdir -p /var/www/storage/framework/cache/data \
+                      /var/www/storage/framework/sessions \
+                      /var/www/storage/framework/views \
+                      /var/www/bootstrap/cache
+
+              chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
               chmod -R 775 /var/www/storage /var/www/bootstrap/cache
             "
 
             docker exec -u www-data quench-be php artisan config:clear
-            docker exec -u www-data quench-be php artisan cache:clear
             docker exec -u www-data quench-be php artisan view:clear
+            docker exec -u www-data quench-be php artisan cache:clear
+
             docker exec -u www-data quench-be php artisan migrate --force --no-interaction
 
             docker image prune -af
