@@ -4,19 +4,14 @@ services:
     container_name: quench-be
     restart: unless-stopped
     working_dir: /var/www
-
     env_file:
       - .env
-
     volumes:
       - .env:/var/www/.env:ro
-
     ports:
       - "127.0.0.1:9000:9000"
-
     extra_hosts:
       - "host.docker.internal:host-gateway"
-
     networks:
       - quench-net
 
@@ -25,21 +20,21 @@ services:
     container_name: quench-be-worker
     restart: unless-stopped
     working_dir: /var/www
-
+    command: php artisan queue:work --sleep=3 --tries=3
     env_file:
       - .env
-
     volumes:
       - .env:/var/www/.env:ro
-
-    command: php artisan queue:work database --sleep=3 --tries=3 --timeout=90
-
     extra_hosts:
       - "host.docker.internal:host-gateway"
-
     networks:
       - quench-net
 
 networks:
   quench-net:
     driver: bridge
+    ipam:
+      config:
+        # This locks the network range so your UFW rules don't break
+        - subnet: 172.21.0.0/16
+          gateway: 172.21.0.1
