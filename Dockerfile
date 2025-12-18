@@ -28,7 +28,8 @@ RUN apk add --no-cache --virtual .build-deps \
     zip \
     intl \
     bcmath \
- && pecl install imagick \
+ # FIX: Force install a specific version or use the master branch if PECL fails
+ && pecl install imagick-3.7.0 \
  && docker-php-ext-enable imagick \
  && apk del .build-deps
 
