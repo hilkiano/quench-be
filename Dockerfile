@@ -8,6 +8,8 @@ RUN apk add --no-cache \
     bash \
     icu \
     libpng \
+    libjpeg-turbo \
+    libwebp \
     libzip \
     oniguruma \
     mysql-client \
@@ -19,6 +21,8 @@ RUN apk add --no-cache --virtual .build-deps \
     $PHPIZE_DEPS \
     icu-dev \
     libpng-dev \
+    libjpeg-turbo-dev \
+    libwebp-dev \
     libzip-dev \
     oniguruma-dev \
     imagemagick-dev \
