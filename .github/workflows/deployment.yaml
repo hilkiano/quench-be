@@ -56,6 +56,8 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
+            set -e
+
             echo "${{ secrets.VPS_REGISTRY_PASS }}" | docker login registry.hilkiano.com -u "${{ secrets.VPS_REGISTRY_USER }}" --password-stdin
 
             cd ~/quench-be
@@ -66,8 +68,35 @@ jobs:
             echo "Starting/Updating services..."
             docker compose -f docker-compose.prod.yaml up -d --remove-orphans
 
-            # Optional: Run migrations inside the container
-            docker exec quench-be-prod php artisan migrate --force
+            echo "Waiting for container to be ready..."
+            sleep 5
+
+            echo "Fixing Laravel permissions..."
+            docker exec -u root quench-be sh -c "
+              chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache &&
+              chmod -R 775 /var/www/storage /var/www/bootstrap/cache
+            "
+
+            echo "Forcing filesystem cache (avoids Redis hang)..."
+            docker exec -u root quench-be sh -c "
+              sed -i 's/^CACHE_DRIVER=.*/CACHE_DRIVER=file/' /var/www/.env || true &&
+              sed -i 's/^SESSION_DRIVER=.*/SESSION_DRIVER=file/' /var/www/.env || true
+            "
+
+            echo "Clearing Laravel cache directories..."
+            docker exec -u root quench-be sh -c "
+              rm -rf /var/www/bootstrap/cache/* &&
+              rm -rf /var/www/storage/framework/cache/* &&
+              rm -rf /var/www/storage/framework/views/* &&
+              rm -rf /var/www/storage/framework/sessions/*
+            "
+
+            echo "Clearing Laravel config & cache..."
+            docker exec quench-be php artisan config:clear
+            docker exec quench-be php artisan cache:clear
+
+            echo "Running migrations..."
+            docker exec quench-be php artisan migrate --force --no-interaction
 
             echo "Pruning unused images..."
             docker image prune -af
