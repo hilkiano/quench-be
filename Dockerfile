@@ -3,7 +3,7 @@ FROM php:8.2-fpm-alpine
 # Set working directory
 WORKDIR /var/www
 
-# Install system dependencies
+# Install system dependencies (permanent)
 RUN apk add --no-cache \
     bash \
     icu \
@@ -11,18 +11,25 @@ RUN apk add --no-cache \
     libzip \
     oniguruma \
     mysql-client \
- && apk add --no-cache --virtual .build-deps \
+    imagemagick \
+    libgomp
+
+# Install build dependencies, compile extensions, and cleanup
+RUN apk add --no-cache --virtual .build-deps \
     $PHPIZE_DEPS \
     icu-dev \
     libpng-dev \
     libzip-dev \
     oniguruma-dev \
+    imagemagick-dev \
  && docker-php-ext-install \
     pdo_mysql \
     mbstring \
     zip \
     intl \
     bcmath \
+ && pecl install imagick \
+ && docker-php-ext-enable imagick \
  && apk del .build-deps
 
 # Install Composer
@@ -38,6 +45,8 @@ RUN composer install \
     --no-interaction
 
 # Fix permissions
+# Note: We do this as root before switching to the non-root user
+USER root
 RUN chown -R www-data:www-data storage bootstrap/cache \
  && chmod -R 775 storage bootstrap/cache
 
