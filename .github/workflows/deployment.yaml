@@ -50,13 +50,6 @@ jobs:
 
       - name: Deploy via Docker Compose
         uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          # PASS ALL SECRETS AS ENV TO THE SCRIPT
-          envs: DB_PASSWORD,DB_PASSWORD_BACKOFFICE,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,JWT_SECRET,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,IPGEOLOCATION_KEY,SLACK_BOT_USER_OAUTH_TOKEN
-        # Note: We use the 'env' keyword below to map GitHub Secrets to the shell variables above
         env:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           DB_PASSWORD_BACKOFFICE: ${{ secrets.DB_PASSWORD_BACKOFFICE }}
@@ -68,6 +61,10 @@ jobs:
           IPGEOLOCATION_KEY: ${{ secrets.IPGEOLOCATION_KEY }}
           SLACK_BOT_USER_OAUTH_TOKEN: ${{ secrets.SLACK_BOT_USER_OAUTH_TOKEN }}
         with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: DB_PASSWORD,DB_PASSWORD_BACKOFFICE,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,JWT_SECRET,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,IPGEOLOCATION_KEY,SLACK_BOT_USER_OAUTH_TOKEN
           script: |
             set -e
 
@@ -77,26 +74,21 @@ jobs:
 
             cd ~/quench-be
 
-            # Pulling doesn't need secrets, but Up does
             docker compose -f docker-compose.prod.yaml pull
 
-            # Docker Compose will automatically pick up the 'envs' we passed into the ssh-action
+            # Docker Compose will now find the variables in the remote shell
             docker compose -f docker-compose.prod.yaml up -d --remove-orphans
 
             sleep 5
 
-            # 1. FIX PERMISSIONS
             docker exec -u root quench-be sh -c "
               chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache &&
               chmod -R 775 /var/www/storage /var/www/bootstrap/cache
             "
 
-            # 2. RUN ARTISAN COMMANDS
             docker exec -u www-data quench-be php artisan config:clear
             docker exec -u www-data quench-be php artisan cache:clear
             docker exec -u www-data quench-be php artisan view:clear
-
-            # 3. RUN MIGRATIONS
             docker exec -u www-data quench-be php artisan migrate --force --no-interaction
 
             docker image prune -af
