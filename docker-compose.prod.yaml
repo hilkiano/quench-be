@@ -8,8 +8,6 @@ services:
       - .env
     ports:
       - "127.0.0.1:9000:9000"
-    volumes:
-      - .:/var/www
     networks:
       - quench-net
 
