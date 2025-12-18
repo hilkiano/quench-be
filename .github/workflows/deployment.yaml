@@ -67,19 +67,23 @@ jobs:
             docker compose -f docker-compose.prod.yaml pull
             docker compose -f docker-compose.prod.yaml up -d --remove-orphans
 
+            # Give the container a moment to initialize
             sleep 5
 
-            # Fix permissions
+            # 1. FIX PERMISSIONS FIRST (as root)
+            # This ensures the next commands have the right to modify the files
             docker exec -u root quench-be sh -c "
               chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache &&
               chmod -R 775 /var/www/storage /var/www/bootstrap/cache
             "
 
-            # Clear cached config (now reads .env)
-            docker exec quench-be php artisan config:clear
-            docker exec quench-be php artisan cache:clear
+            # 2. RUN ARTISAN COMMANDS AS THE WEB USER
+            # Using -u www-data prevents the cache from being "re-locked" by root
+            docker exec -u www-data quench-be php artisan config:clear
+            docker exec -u www-data quench-be php artisan cache:clear
+            docker exec -u www-data quench-be php artisan view:clear
 
-            # Run migrations
-            docker exec quench-be php artisan migrate --force --no-interaction
+            # 3. RUN MIGRATIONS
+            docker exec -u www-data quench-be php artisan migrate --force --no-interaction
 
             docker image prune -af
