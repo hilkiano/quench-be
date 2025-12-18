@@ -4,10 +4,19 @@ services:
     container_name: quench-be
     restart: unless-stopped
     working_dir: /var/www
+
     env_file:
       - .env
+
+    volumes:
+      - .env:/var/www/.env:ro
+
     ports:
       - "127.0.0.1:9000:9000"
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
     networks:
       - quench-net
 
