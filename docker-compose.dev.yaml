@@ -1,0 +1,21 @@
+services:
+  app:
+    build: .
+    container_name: quench-be-test
+    restart: unless-stopped
+    volumes:
+      - ./:/var/www
+    command: >
+      sh -c "chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache &&
+            chmod -R 775 /var/www/storage /var/www/bootstrap/cache &&
+            php-fpm -F -R"
+    user: root
+    environment:
+      - DB_HOST=host.docker.internal
+      - DB_HOST_BACKOFFICE=host.docker.internal
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "9000:9000"

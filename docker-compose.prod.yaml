@@ -1,0 +1,11 @@
+services:
+  app:
+    image: registry.hilkiano.com/quench-be:latest
+    container_name: quench-be
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "9000:9000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

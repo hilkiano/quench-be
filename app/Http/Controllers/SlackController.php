@@ -18,7 +18,10 @@ class SlackController extends Controller
         } catch (\Exception $e) {
             Log::error($e->getMessage());
             Log::error($e->getTraceAsString());
-            return $this->jsonResponse(false, null, $e->getMessage(), $e->getTrace(), 500);
+            return response()->json([
+                'status' => false,
+                'message' => $e->getMessage()
+            ], 500);
         }
     }
 }

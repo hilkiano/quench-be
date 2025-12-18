@@ -1,31 +1,73 @@
-name: Quench BE CICD
+name: Build and push Docker image to VPS
 
 on:
   push:
     branches: ["main"]
 
 jobs:
-  job_1:
-    name: Build Quench BE
-    runs-on: self-hosted
-    environment: production
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
         with:
-          clean: false
-      - name: Copy .env
-        env:
-          DOT_ENV: ${{ secrets.ENCRYPTED_DOT_ENV }}
-        run: |
-          rm -f .env
-          touch .env
-          echo "${DOT_ENV// /}" | base64 --decode > .env
-      - name: Install Dependencies Backend
-        run: composer install
-      - name: Clear Cache
-        run: |
-          php artisan cache:clear
-          php artisan route:clear
-          php artisan config:clear
-      - name: Directory Permissions Backend
-        run: echo ${{ secrets.DROPLET_PASS }} | sudo -S chmod -R 777 storage bootstrap/cache
+          driver: docker-container
+
+      - name: Login to VPS Docker Registry
+        timeout-minutes: 2
+        uses: docker/login-action@v3
+        with:
+          registry: registry.hilkiano.com
+          username: ${{ secrets.VPS_REGISTRY_USER }}
+          password: ${{ secrets.VPS_REGISTRY_PASS }}
+
+      - name: Build and push image
+        timeout-minutes: 10
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          # Make sure to update the tag name to quench-be or similar
+          tags: registry.hilkiano.com/quench-be:latest
+          cache-from: type=registry,ref=registry.hilkiano.com/quench-be:buildcache
+          cache-to: type=registry,ref=registry.hilkiano.com/quench-be:buildcache,mode=max
+          build-args: |
+            APP_ENV=production
+            APP_DEBUG=false
+
+      - name: Copy docker-compose.prod.yaml to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "docker-compose.prod.yaml"
+          target: "~/quench-be"
+
+      - name: Deploy via Docker Compose
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            echo "${{ secrets.VPS_REGISTRY_PASS }}" | docker login registry.hilkiano.com -u "${{ secrets.VPS_REGISTRY_USER }}" --password-stdin
+
+            cd ~/quench-be
+
+            echo "Pulling latest image..."
+            docker compose -f docker-compose.prod.yaml pull
+
+            echo "Starting/Updating services..."
+            docker compose -f docker-compose.prod.yaml up -d --remove-orphans
+
+            # Optional: Run migrations inside the container
+            docker exec quench-be-prod php artisan migrate --force
+
+            echo "Pruning unused images..."
+            docker image prune -af
