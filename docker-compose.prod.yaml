@@ -14,6 +14,14 @@ services:
       - "host.docker.internal:host-gateway"
     networks:
       - quench-net
+    # Resource Management
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50" # Max 50% of a single CPU core
+          memory: 512M # Hard limit (container will restart if exceeded)
+        reservations:
+          memory: 128M # Soft limit (guaranteed memory)
 
   worker:
     image: registry.hilkiano.com/quench-be:latest
@@ -29,6 +37,13 @@ services:
       - "host.docker.internal:host-gateway"
     networks:
       - quench-net
+    deploy:
+      resources:
+        limits:
+          cpus: "0.30" # Workers are usually less intensive unless doing heavy processing
+          memory: 256M
+        reservations:
+          memory: 64M
 
 networks:
   quench-net:
