@@ -32,6 +32,18 @@ services:
         reservations:
           memory: 128M
 
+  nginx:
+    image: nginx:alpine
+    container_name: quench-nginx
+    restart: unless-stopped
+    depends_on:
+      - app
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./:/var/www
+    networks:
+      - quench-net
+
   worker:
     image: registry.hilkiano.com/quench-be:latest
     container_name: quench-be-worker
